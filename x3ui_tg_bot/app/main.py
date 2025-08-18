@@ -1,0 +1,61 @@
+from __future__ import annotations
+
+import asyncio
+import contextlib
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from aiogram import Bot, Dispatcher, BaseMiddleware
+from aiogram.types import Update
+
+from .config import settings
+from .db import init_db, get_session
+from .bot import router as bot_router
+from .payment.mock import register_routes as register_mock_routes
+
+
+bot: Bot | None = None
+dispatcher: Dispatcher | None = None
+
+
+class SessionMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event: Update, data):
+        if "session" not in data:
+            async for s in get_session():
+                data["session"] = s
+                break
+        return await handler(event, data)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global bot, dispatcher
+    await init_db()
+
+    polling_task = None
+    if settings.telegram_bot_token and settings.telegram_bot_token != "CHANGE_ME":
+        bot = Bot(token=settings.telegram_bot_token)
+        dispatcher = Dispatcher()
+        dispatcher.message.middleware(SessionMiddleware())
+        dispatcher.include_router(bot_router)
+        polling_task = asyncio.create_task(dispatcher.start_polling(bot))
+    try:
+        yield
+    finally:
+        if polling_task:
+            polling_task.cancel()
+            with contextlib.suppress(Exception):
+                await polling_task
+        if bot:
+            await bot.session.close()
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.get("/healthz")
+async def healthz():
+    return {"status": "ok"}
+
+
+register_mock_routes(app)
