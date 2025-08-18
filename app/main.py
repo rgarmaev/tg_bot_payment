@@ -12,6 +12,7 @@ from .config import settings
 from .db import init_db, async_session
 from .bot import router as bot_router
 from .payment.mock import register_routes as register_mock_routes
+from .payment.robokassa import register_routes as register_robokassa_routes
 
 
 bot: Bot | None = None
@@ -59,3 +60,4 @@ async def healthz():
 
 
 register_mock_routes(app)
+register_robokassa_routes(app)

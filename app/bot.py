@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from .config import settings
+from .payment.robokassa import build_payment_url
 from .models import User, Order, OrderStatus, Subscription
 from .x3ui.client import X3UIClient
 
@@ -58,25 +59,21 @@ async def cmd_buy(message: types.Message, session: AsyncSession):
     session.add(order)
     await session.commit()
 
-    kb = None
-    if settings.public_base_url and settings.public_base_url.startswith("http"):
-        pay_url = f"{settings.public_base_url}/pay/mock/{order.id}"
-        kb = InlineKeyboardBuilder()
-        kb.button(text="Оплатить (mock)", url=pay_url)
-        kb.adjust(1)
+    # Robokassa payment link
+    description = f"Оплата счёта #{order.id}"
+    try:
+        pay_url = build_payment_url(order.id, order.amount, description)
+    except Exception as e:
+        await message.answer(f"Ошибка формирования ссылки Robokassa: {e}")
+        return
 
-    text = (
-        f"Счёт #{order.id} на {order.amount}₽ создан.\n"
-        "Если кнопка оплаты не появилась, откройте ссылку вручную: "
-    )
-    if settings.public_base_url:
-        text += f"{settings.public_base_url}/pay/mock/{order.id}\n"
-    else:
-        text += "укажите PUBLIC_BASE_URL в .env и повторите /buy\n"
+    kb = InlineKeyboardBuilder()
+    kb.button(text="Оплатить через Robokassa", url=pay_url)
+    kb.adjust(1)
 
     await message.answer(
-        text,
-        reply_markup=(kb.as_markup() if kb else None),
+        f"Счёт #{order.id} на {order.amount}₽ создан. Оплатите по ссылке ниже.",
+        reply_markup=kb.as_markup(),
     )
 
 

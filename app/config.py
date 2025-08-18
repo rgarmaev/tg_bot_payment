@@ -5,8 +5,15 @@ class Settings(BaseSettings):
     telegram_bot_token: str = "CHANGE_ME"
     admin_user_id: int | None = None
 
-    # Payment mock or real provider switch
-    payment_provider: str = "mock"  # mock | cryptocloud | yookassa | stars
+    # Payment provider switch
+    payment_provider: str = "robokassa"  # robokassa | mock | cryptocloud | yookassa | stars
+
+    # Robokassa
+    robokassa_login: str | None = None
+    robokassa_password1: str | None = None
+    robokassa_password2: str | None = None
+    robokassa_is_test: bool = True
+    robokassa_culture: str = "ru"
 
     # 3x-ui panel
     x3ui_base_url: str = "http://127.0.0.1:2053"  # without trailing slash
