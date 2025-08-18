@@ -9,7 +9,7 @@ from aiogram import Bot, Dispatcher, BaseMiddleware
 from aiogram.types import Update
 
 from .config import settings
-from .db import init_db, get_session
+from .db import init_db, async_session
 from .bot import router as bot_router
 from .payment.mock import register_routes as register_mock_routes
 
@@ -20,11 +20,11 @@ dispatcher: Dispatcher | None = None
 
 class SessionMiddleware(BaseMiddleware):
     async def __call__(self, handler, event: Update, data):
-        if "session" not in data:
-            async for s in get_session():
-                data["session"] = s
-                break
-        return await handler(event, data)
+        if "session" in data:
+            return await handler(event, data)
+        async with async_session() as s:
+            data["session"] = s
+            return await handler(event, data)
 
 
 @asynccontextmanager

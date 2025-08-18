@@ -58,18 +58,25 @@ async def cmd_buy(message: types.Message, session: AsyncSession):
     session.add(order)
     await session.commit()
 
-    pay_url = f"/pay/mock/{order.id}"
-    if settings.public_base_url:
+    kb = None
+    if settings.public_base_url and settings.public_base_url.startswith("http"):
         pay_url = f"{settings.public_base_url}/pay/mock/{order.id}"
+        kb = InlineKeyboardBuilder()
+        kb.button(text="Оплатить (mock)", url=pay_url)
+        kb.adjust(1)
 
-    kb = InlineKeyboardBuilder()
-    kb.button(text="Оплатить (mock)", url=pay_url)
-    kb.adjust(1)
+    text = (
+        f"Счёт #{order.id} на {order.amount}₽ создан.\n"
+        "Если кнопка оплаты не появилась, откройте ссылку вручную: "
+    )
+    if settings.public_base_url:
+        text += f"{settings.public_base_url}/pay/mock/{order.id}\n"
+    else:
+        text += "укажите PUBLIC_BASE_URL в .env и повторите /buy\n"
 
     await message.answer(
-        f"Счёт #{order.id} на {order.amount}₽ создан.\n"
-        "Нажмите кнопку для оплаты, затем /check.",
-        reply_markup=kb.as_markup(),
+        text,
+        reply_markup=(kb.as_markup() if kb else None),
     )
 
 
