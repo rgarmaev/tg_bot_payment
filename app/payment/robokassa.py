@@ -22,7 +22,7 @@ def _signature_md5(*parts: str) -> str:
     return hashlib.md5(src.encode("utf-8")).hexdigest()
 
 
-def build_payment_url(order_id: int, amount: int, description: str) -> str:
+def build_payment_url(order_id: int, amount: int, description: str = "Оплата подписки") -> str:
     if not (settings.robokassa_login and settings.robokassa_password1):
         raise RuntimeError("Robokassa credentials are not set")
     out_sum = f"{amount:.2f}".replace(",", ".")
@@ -39,6 +39,15 @@ def build_payment_url(order_id: int, amount: int, description: str) -> str:
         "IsTest": is_test,
         "Culture": settings.robokassa_culture,
     }
+    # add return URLs if public base available
+    if settings.public_base_url:
+        base = settings.public_base_url.rstrip("/")
+        params.update(
+            {
+                "SuccessURL": f"{base}/payments/robokassa/success",
+                "FailURL": f"{base}/payments/robokassa/fail",
+            }
+        )
     return f"{_gateway_url()}?{urlencode(params)}"
 
 
