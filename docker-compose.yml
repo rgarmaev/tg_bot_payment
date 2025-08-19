@@ -1,0 +1,7 @@
+services:
+  tg_bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app  # если нужно, чтобы код монтировался
