@@ -11,7 +11,6 @@ from aiogram.types import Update
 from .config import settings
 from .db import init_db, async_session
 from .bot import router as bot_router
-from .payment.mock import register_routes as register_mock_routes
 from .payment.robokassa import register_routes as register_robokassa_routes
 
 
@@ -59,7 +58,5 @@ async def healthz():
     return {"status": "ok"}
 
 
-if settings.payment_provider == "mock":
-	register_mock_routes(app)
-elif settings.payment_provider == "robokassa":
+if settings.payment_provider == "robokassa":
 	register_robokassa_routes(app)

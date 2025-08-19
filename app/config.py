@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     admin_user_id: int | None = None
 
     # Payment provider switch
-    payment_provider: str = "robokassa"  # robokassa | mock | cryptocloud | yookassa | stars
+    payment_provider: str = "robokassa"  # robokassa
 
     # Robokassa
     robokassa_login: str | None = None
