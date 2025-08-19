@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     robokassa_password2: str | None = None
     robokassa_is_test: bool = True
     robokassa_culture: str = "ru"
+    robokassa_gateway_url: str = "https://auth.robokassa.ru/Merchant/Index.aspx"
 
     # 3x-ui panel
     x3ui_base_url: str = "http://127.0.0.1:2053"  # without trailing slash

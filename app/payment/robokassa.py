@@ -13,7 +13,8 @@ from ..db import async_session
 from ..models import Order, OrderStatus
 
 
-ROBOKASSA_GATEWAY = "https://auth.robokassa.ru/Merchant/Index.aspx"
+def _gateway_url() -> str:
+    return (settings.robokassa_gateway_url or "https://auth.robokassa.ru/Merchant/Index.aspx").rstrip("/")
 
 
 def _signature_md5(*parts: str) -> str:
@@ -38,7 +39,7 @@ def build_payment_url(order_id: int, amount: int, description: str) -> str:
         "IsTest": is_test,
         "Culture": settings.robokassa_culture,
     }
-    return f"{ROBOKASSA_GATEWAY}?{urlencode(params)}"
+    return f"{_gateway_url()}?{urlencode(params)}"
 
 
 def register_routes(app: FastAPI) -> None:
