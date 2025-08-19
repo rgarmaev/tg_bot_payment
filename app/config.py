@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import Field, AliasChoices
 
 
 class Settings(BaseSettings):
@@ -25,8 +26,11 @@ class Settings(BaseSettings):
     x3ui_client_days: int = 30
     x3ui_client_traffic_gb: int | None = None  # None = unlimited
 
-    # Public base URL for webhook callbacks
-    public_base_url: str | None = None
+    # Public base URL (accepts env PUBLIC_BASE_URL or BASE_URL)
+    public_base_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("PUBLIC_BASE_URL", "BASE_URL"),
+    )
 
     # Pricing/tariffs
     plan_name: str = "Monthly"
