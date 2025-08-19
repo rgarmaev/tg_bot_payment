@@ -14,11 +14,13 @@ COPY requirements.txt ./
 RUN python -m pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy app
+# Copy app and run script
 COPY app ./app
+COPY run.sh ./run.sh
+RUN chmod +x ./run.sh
 
 # Expose port
 EXPOSE 8000
 
 # Run
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["./run.sh"]
