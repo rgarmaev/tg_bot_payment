@@ -59,5 +59,7 @@ async def healthz():
     return {"status": "ok"}
 
 
-register_mock_routes(app)
-register_robokassa_routes(app)
+if settings.payment_provider == "mock":
+	register_mock_routes(app)
+elif settings.payment_provider == "robokassa":
+	register_robokassa_routes(app)

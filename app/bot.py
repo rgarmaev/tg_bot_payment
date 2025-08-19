@@ -24,14 +24,19 @@ class AppDeps:
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message, session: AsyncSession):
-    result = await session.execute(
-        select(User).where(User.tg_user_id == message.from_user.id)
-    )
+    # Idempotent user create (handles concurrent updates)
+    result = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
     user = result.scalar_one_or_none()
     if not user:
-        user = User(tg_user_id=message.from_user.id)
-        session.add(user)
-        await session.commit()
+        try:
+            user = User(tg_user_id=message.from_user.id)
+            session.add(user)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            # another concurrent insert may have created it — fetch again
+            result = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
+            user = result.scalar_one()
     await message.answer(
         "Добро пожаловать!\n"
         f"Тариф: {settings.plan_name} — {settings.plan_days} дней, {settings.plan_price_rub}₽\n"
@@ -41,14 +46,17 @@ async def cmd_start(message: types.Message, session: AsyncSession):
 
 @router.message(Command("buy"))
 async def cmd_buy(message: types.Message, session: AsyncSession):
-    result = await session.execute(
-        select(User).where(User.tg_user_id == message.from_user.id)
-    )
+    result = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
     user = result.scalar_one_or_none()
     if not user:
-        user = User(tg_user_id=message.from_user.id)
-        session.add(user)
-        await session.commit()
+        try:
+            user = User(tg_user_id=message.from_user.id)
+            session.add(user)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            result = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
+            user = result.scalar_one()
 
     order = Order(
         user_id=user.id,
