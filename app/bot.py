@@ -57,19 +57,18 @@ async def cmd_buy(message: types.Message, session: AsyncSession):
                 result = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
                 user = result.scalar_one()
 
-    order = Order(
-        user_id=user.id,
-        amount=settings.plan_price_rub,
-        currency="RUB",
-        status=OrderStatus.PENDING,
-    )
-    session.add(order)
-    await session.commit()
+    async with session.begin():
+        order = Order(
+            user_id=user.id,
+            amount=settings.plan_price_rub,
+            currency="RUB",
+            status=OrderStatus.PENDING,
+        )
+        session.add(order)
 
     # Robokassa payment link
-    description = f"Оплата счёта #{order.id}"
     try:
-        pay_url = build_payment_url(order.id, order.amount, description)
+        pay_url = build_payment_url(order.id, float(order.amount))
     except Exception as e:
         await message.answer(f"Ошибка формирования ссылки Robokassa: {e}")
         return
