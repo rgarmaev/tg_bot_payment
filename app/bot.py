@@ -38,20 +38,24 @@ def get_plan_by_code(code: str) -> Optional[dict]:
     return None
 
 
+async def ensure_user(session: AsyncSession, tg_user_id: int) -> User:
+    result = await session.execute(select(User).where(User.tg_user_id == tg_user_id))
+    user = result.scalar_one_or_none()
+    if user:
+        return user
+    from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+    # Insert or ignore to avoid UNIQUE violation on races
+    await session.execute(
+        sqlite_insert(User).prefix_with("OR IGNORE").values(tg_user_id=tg_user_id)
+    )
+    result = await session.execute(select(User).where(User.tg_user_id == tg_user_id))
+    return result.scalar_one()
+
+
 @router.message(Command("start"))
 async def cmd_start(message: types.Message, session: AsyncSession):
-    # Idempotent user create (handles concurrent updates)
     async with session.begin():
-        result = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
-        user = result.scalar_one_or_none()
-        if not user:
-            try:
-                user = User(tg_user_id=message.from_user.id)
-                session.add(user)
-            except Exception:
-                await session.rollback()
-                result = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
-                user = result.scalar_one()
+        await ensure_user(session, message.from_user.id)
 
     kb = InlineKeyboardBuilder()
     kb.button(text="📦 Выбрать тариф", callback_data="menu:plans")
@@ -82,16 +86,7 @@ async def cmd_start(message: types.Message, session: AsyncSession):
 @router.message(Command("buy"))
 async def cmd_buy(message: types.Message, session: AsyncSession):
     async with session.begin():
-        result = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
-        user = result.scalar_one_or_none()
-        if not user:
-            try:
-                user = User(tg_user_id=message.from_user.id)
-                session.add(user)
-            except Exception:
-                await session.rollback()
-                result = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
-                user = result.scalar_one()
+        await ensure_user(session, message.from_user.id)
 
     kb = InlineKeyboardBuilder()
     for p in PLANS:
@@ -185,12 +180,7 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
 
     # Ensure user and create order within a transaction
     async with session.begin():
-        result = await session.execute(select(User).where(User.tg_user_id == callback.from_user.id))
-        user = result.scalar_one_or_none()
-        if not user:
-            user = User(tg_user_id=callback.from_user.id)
-            session.add(user)
-            await session.flush()
+        user = await ensure_user(session, callback.from_user.id)
 
         order = Order(
             user_id=user.id,
@@ -228,6 +218,9 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
         # fallback (should not be used once Robokassa fully removed)
         pay_url = None
 
+    if not pay_url:
+        await callback.answer("Не удалось сформировать ссылку оплаты", show_alert=True)
+        return
     kb = InlineKeyboardBuilder()
     kb.button(text="Оплатить", url=pay_url)
     kb.button(text="⬅️ Назад к тарифам", callback_data="menu:plans")
