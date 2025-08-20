@@ -56,6 +56,7 @@ async def cmd_start(message: types.Message, session: AsyncSession):
     kb = InlineKeyboardBuilder()
     kb.button(text="📦 Выбрать тариф", callback_data="menu:plans")
     kb.button(text="📄 Мои подписки", callback_data="menu:subs")
+    kb.button(text="📲 Скачать приложение", callback_data="menu:apps")
     kb.adjust(1)
 
     text = (
@@ -95,6 +96,16 @@ async def cb_open_plans(callback: types.CallbackQuery):
         kb.button(text=f"{p['title']} — {p['price']}₽", callback_data=f"plan:{p['code']}")
     kb.adjust(1)
     await callback.message.edit_text("Выберите тариф:", reply_markup=kb.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "menu:apps")
+async def cb_open_apps(callback: types.CallbackQuery):
+    kb = InlineKeyboardBuilder()
+    kb.button(text="iOS (App Store)", url="https://apps.apple.com/app/id6476628951")
+    kb.button(text="Android (Google Play)", url="https://play.google.com/store/apps/details?id=com.v2raytun.android&pcampaignid=web_share")
+    kb.adjust(1)
+    await callback.message.edit_text("Скачайте приложение для подключения:", reply_markup=kb.as_markup())
     await callback.answer()
 
 
