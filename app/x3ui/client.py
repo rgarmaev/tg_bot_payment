@@ -114,3 +114,84 @@ class X3UIClient:
                     continue
 
         return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
+
+    async def get_inbound(self, inbound_id: int) -> Optional[dict]:
+        await self.login()
+        endpoints = [
+            f"/panel/api/inbounds/get/{inbound_id}",
+            "/panel/api/inbounds/list",
+        ]
+        for ep in endpoints:
+            try:
+                resp = await self._client.get(ep)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, dict):
+                        obj = data.get("obj") if isinstance(data.get("obj"), (dict, list)) else None
+                        if obj is None:
+                            obj = data.get("data") if isinstance(data.get("data"), (dict, list)) else None
+                        if isinstance(obj, dict):
+                            if obj.get("id") == inbound_id or obj.get("port"):
+                                return obj
+                        if isinstance(obj, list):
+                            for it in obj:
+                                if it.get("id") == inbound_id:
+                                    return it
+            except Exception as e:
+                self._log.debug("get_inbound %s error: %s", ep, e)
+                continue
+        return None
+
+    def build_vless_url(self, inbound: dict, client_uuid: str, note: str) -> Optional[str]:
+        try:
+            protocol = (inbound.get("protocol") or "vless").lower()
+            if protocol != "vless":
+                return None
+            port = inbound.get("port")
+            stream = inbound.get("streamSettings", {})
+            network = (stream.get("network") or "tcp").lower()
+            security = (stream.get("security") or "none").lower()
+
+            host = None
+            path = None
+            sni = None
+
+            if network == "ws":
+                ws = stream.get("wsSettings", {})
+                path = ws.get("path") or "/"
+                headers = ws.get("headers") or {}
+                host = headers.get("Host") or headers.get("host")
+            if security in ("tls", "reality"):
+                tls = stream.get("tlsSettings", {})
+                sni = tls.get("serverName")
+
+            # Derive server host from PUBLIC_BASE_URL if not present
+            from ..config import settings as app_settings
+            if not host and app_settings.public_base_url:
+                try:
+                    from urllib.parse import urlparse
+                    parsed = urlparse(app_settings.public_base_url)
+                    if parsed.hostname:
+                        host = parsed.hostname
+                except Exception:
+                    pass
+            server = host or sni
+            if not server or not port:
+                return None
+
+            params = {"encryption": "none"}
+            if security and security != "none":
+                params["security"] = security
+            if network == "ws":
+                params["type"] = "ws"
+                if path:
+                    params["path"] = path
+                if host:
+                    params["host"] = host
+
+            from urllib.parse import urlencode, quote
+            qs = urlencode(params)
+            tag = quote(note)
+            return f"vless://{client_uuid}@{server}:{port}?{qs}#{tag}"
+        except Exception:
+            return None
