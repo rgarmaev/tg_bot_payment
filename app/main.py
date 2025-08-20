@@ -4,7 +4,8 @@ import asyncio
 import contextlib
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
+from fastapi.responses import PlainTextResponse
 from aiogram import Bot, Dispatcher, BaseMiddleware
 from aiogram.types import Update
 
@@ -57,6 +58,16 @@ app = FastAPI(lifespan=lifespan)
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
+
+
+@app.get("/", include_in_schema=False, response_class=PlainTextResponse)
+async def root():
+	return "OK"
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+	return Response(status_code=204)
 
 
 if settings.payment_provider == "yookassa":
