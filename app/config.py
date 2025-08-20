@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     admin_user_id: int | None = None
 
     # Payment provider switch
-    payment_provider: str = "robokassa"  # robokassa
+    payment_provider: str = "yookassa"  # yookassa | robokassa
 
     # Robokassa
     robokassa_login: str | None = None
@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     robokassa_is_test: bool = True
     robokassa_culture: str = "ru"
     robokassa_gateway_url: str = "https://auth.robokassa.ru/Merchant/Index.aspx"
+
+    # YooKassa
+    yk_shop_id: str | None = None
+    yk_api_key: str | None = None
 
     # 3x-ui panel
     x3ui_base_url: str = "http://127.0.0.1:2053"  # without trailing slash
