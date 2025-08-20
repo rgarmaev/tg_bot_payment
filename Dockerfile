@@ -7,6 +7,7 @@ WORKDIR /app
 # System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates \
+    build-essential gcc libssl-dev libffi-dev \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Python deps first (better layer caching)
@@ -16,6 +17,7 @@ RUN python -m pip install --upgrade pip && \
 
 # Copy app and run script
 COPY app ./app
+COPY .env.example ./.env.example
 COPY run.sh ./run.sh
 RUN chmod +x ./run.sh
 
