@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -21,6 +22,7 @@ class X3UIClient:
         self.username = username
         self.password = password
         self._client = httpx.AsyncClient(base_url=self.base_url, timeout=15)
+        self._log = logging.getLogger("x3ui")
 
     async def __aenter__(self) -> "X3UIClient":
         return self
@@ -59,7 +61,19 @@ class X3UIClient:
         if traffic_gb is not None:
             total_gb_bytes = int(traffic_gb) * 1024 * 1024 * 1024
 
+        # Prefer 3x-ui v2.6.2 API first
         payload_variants = [
+            {
+                "inboundId": inbound_id,
+                "client": {
+                    "id": client_uuid,
+                    "email": email_note,
+                    "enable": True,
+                    "limitIp": 0,
+                    "totalGB": total_gb_bytes or 0,
+                    "expiryTime": expiry_ms,
+                },
+            },
             {
                 "id": inbound_id,
                 "settings": {
@@ -75,35 +89,28 @@ class X3UIClient:
                     ]
                 },
             },
-            {
-                "inboundId": inbound_id,
-                "client": {
-                    "id": client_uuid,
-                    "email": email_note,
-                    "enable": True,
-                    "limitIp": 0,
-                    "totalGB": total_gb_bytes or 0,
-                    "expiryTime": expiry_ms,
-                },
-            },
         ]
 
         endpoints = [
+            "/panel/api/inbounds/addClient",  # 3x-ui v2.6.2
+            "/api/inbounds/addClient",
             "/panel/inbound/addClient",
             "/xui/inbound/addClient",
-            "/panel/api/inbounds/addClient",
-            "/api/inbounds/addClient",
         ]
 
         for endpoint in endpoints:
             for payload in payload_variants:
                 try:
+                    self._log.debug("x3-ui addClient try %s payload=%s", endpoint, "client" if "client" in payload else "settings")
                     resp = await self._client.post(endpoint, json=payload)
-                    if resp.status_code == 200 and "success" in resp.text.lower():
-                        return X3UICreateClientResult(
-                            uuid=client_uuid, note=email_note, config_url=None
-                        )
-                except Exception:
+                    body = resp.text
+                    self._log.debug("x3-ui addClient %s -> %s %s", endpoint, resp.status_code, body[:400])
+                    if resp.status_code == 200:
+                        lower = body.lower()
+                        if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
+                            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
+                except Exception as e:
+                    self._log.warning("x3-ui addClient error on %s: %s", endpoint, e)
                     continue
 
         return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
