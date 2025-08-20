@@ -7,15 +7,9 @@ class Settings(BaseSettings):
     admin_user_id: int | None = None
 
     # Payment provider switch
-    payment_provider: str = "yookassa"  # yookassa | robokassa
+    payment_provider: str = "yookassa"  # yookassa
 
-    # Robokassa
-    robokassa_login: str | None = None
-    robokassa_password1: str | None = None
-    robokassa_password2: str | None = None
-    robokassa_is_test: bool = True
-    robokassa_culture: str = "ru"
-    robokassa_gateway_url: str = "https://auth.robokassa.ru/Merchant/Index.aspx"
+    # Robokassa (disabled)
 
     # YooKassa
     yk_shop_id: str | None = None
