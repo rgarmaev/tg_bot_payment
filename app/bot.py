@@ -59,9 +59,20 @@ async def cmd_start(message: types.Message, session: AsyncSession):
     kb.button(text="📲 Скачать приложение", callback_data="menu:apps")
     kb.adjust(1)
 
+    # Build tariffs/discounts lines
+    base_month_price = next((p["price"] for p in PLANS if p["code"] == "m1"), 200)
+    lines = []
+    for p in PLANS:
+        days = p["days"]
+        months = 12 if days >= 360 else max(1, round(days / 30))
+        full_price = base_month_price * months
+        discount = max(0, int(round((1 - (p["price"] / full_price)) * 100)))
+        lines.append(f"- {p['title']}: {p['price']}₽ (скидка {discount}% при оплате за {months} мес)")
+
     text = (
         "🔥 Добро пожаловать в MY VPN Server!\n"
         "Доступ в сеть без ограничений!\n\n"
+        "Тарифы и скидки:\n" + "\n".join(lines) + "\n\n"
         "Выберите тариф и оплатите — доступ придёт автоматически.\n\n"
         "Команды: /buy • /check • /my"
     )
@@ -94,8 +105,37 @@ async def cb_open_plans(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     for p in PLANS:
         kb.button(text=f"{p['title']} — {p['price']}₽", callback_data=f"plan:{p['code']}")
+    kb.button(text="⬅️ Назад", callback_data="menu:home")
     kb.adjust(1)
     await callback.message.edit_text("Выберите тариф:", reply_markup=kb.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "menu:home")
+async def cb_home(callback: types.CallbackQuery):
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📦 Выбрать тариф", callback_data="menu:plans")
+    kb.button(text="📄 Мои подписки", callback_data="menu:subs")
+    kb.button(text="📲 Скачать приложение", callback_data="menu:apps")
+    kb.adjust(1)
+
+    base_month_price = next((p["price"] for p in PLANS if p["code"] == "m1"), 200)
+    lines = []
+    for p in PLANS:
+        days = p["days"]
+        months = 12 if days >= 360 else max(1, round(days / 30))
+        full_price = base_month_price * months
+        discount = max(0, int(round((1 - (p["price"] / full_price)) * 100)))
+        lines.append(f"- {p['title']}: {p['price']}₽ (скидка {discount}% при оплате за {months} мес)")
+
+    text = (
+        "🔥 Добро пожаловать в MY VPN Server!\n"
+        "Доступ в сеть без ограничений!\n\n"
+        "Тарифы и скидки:\n" + "\n".join(lines) + "\n\n"
+        "Выберите тариф и оплатите — доступ придёт автоматически.\n\n"
+        "Команды: /buy • /check • /my"
+    )
+    await callback.message.edit_text(text, reply_markup=kb.as_markup())
     await callback.answer()
 
 
@@ -104,6 +144,7 @@ async def cb_open_apps(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     kb.button(text="iOS (App Store)", url="https://apps.apple.com/app/id6476628951")
     kb.button(text="Android (Google Play)", url="https://play.google.com/store/apps/details?id=com.v2raytun.android&pcampaignid=web_share")
+    kb.button(text="⬅️ Назад", callback_data="menu:home")
     kb.adjust(1)
     await callback.message.edit_text("Скачайте приложение для подключения:", reply_markup=kb.as_markup())
     await callback.answer()
@@ -127,7 +168,10 @@ async def cb_open_subs(callback: types.CallbackQuery, session: AsyncSession):
             if s.config_url:
                 line += f"\n{s.config_url}"
             lines.append(line)
-        await callback.message.edit_text("\n".join(lines))
+        kb = InlineKeyboardBuilder()
+        kb.button(text="⬅️ Назад", callback_data="menu:home")
+        kb.adjust(1)
+        await callback.message.edit_text("\n".join(lines), reply_markup=kb.as_markup())
     await callback.answer()
 
 
@@ -162,13 +206,14 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
         amount = float(order.amount)
 
     try:
-        pay_url = build_payment_url(order_id, amount, f"Оплата тарифа {plan[title]}")
+        pay_url = build_payment_url(order_id, amount, f"Оплата тарифа {plan['title']}")
     except Exception as e:
         await callback.answer(f"Ошибка Robokassa: {e}", show_alert=True)
         return
 
     kb = InlineKeyboardBuilder()
     kb.button(text="Оплатить через Robokassa", url=pay_url)
+    kb.button(text="⬅️ Назад к тарифам", callback_data="menu:plans")
     kb.adjust(1)
     await callback.message.edit_text(
         f"Счёт #{order_id} на {amount:.2f}₽ создан. Оплатите по ссылке ниже.",
