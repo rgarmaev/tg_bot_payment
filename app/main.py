@@ -12,6 +12,7 @@ from .config import settings
 from .db import init_db, async_session
 from .bot import router as bot_router
 from .payment.robokassa import register_routes as register_robokassa_routes
+from .payment.yookassa_pay import register_routes as register_yookassa_routes
 
 
 bot: Bot | None = None
@@ -61,3 +62,5 @@ async def healthz():
 
 if settings.payment_provider == "robokassa":
 	register_robokassa_routes(app)
+elif settings.payment_provider == "yookassa":
+	register_yookassa_routes(app)
