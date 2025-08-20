@@ -1,8 +1,10 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, AliasChoices
 
 
 class Settings(BaseSettings):
+    # Ignore unknown env variables (e.g., legacy ROBOKASSA_* keys)
+    model_config = SettingsConfigDict(extra="ignore")
     telegram_bot_token: str = "CHANGE_ME"
     admin_user_id: int | None = None
 
