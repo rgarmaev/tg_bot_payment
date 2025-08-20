@@ -3,8 +3,8 @@ from pydantic import Field, AliasChoices
 
 
 class Settings(BaseSettings):
-    # Ignore unknown env variables (e.g., legacy ROBOKASSA_* keys)
-    model_config = SettingsConfigDict(extra="ignore")
+    # Pydantic v2 config
+    model_config = SettingsConfigDict(extra="ignore", env_file=".env", env_file_encoding="utf-8")
     telegram_bot_token: str = "CHANGE_ME"
     admin_user_id: int | None = None
 
@@ -39,9 +39,7 @@ class Settings(BaseSettings):
 
     sqlite_url: str = "sqlite+aiosqlite:///./bot.db"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    # No pydantic v1 Config
 
 
 settings = Settings()
