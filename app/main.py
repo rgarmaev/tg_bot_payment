@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI):
         bot = Bot(token=settings.telegram_bot_token)
         dispatcher = Dispatcher()
         dispatcher.message.middleware(SessionMiddleware())
+        dispatcher.callback_query.middleware(SessionMiddleware())
         dispatcher.include_router(bot_router)
         polling_task = asyncio.create_task(dispatcher.start_polling(bot))
     try:
