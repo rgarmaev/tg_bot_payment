@@ -82,7 +82,7 @@ async def cmd_buy(message: types.Message, session: AsyncSession):
 
     kb = InlineKeyboardBuilder()
     for p in PLANS:
-        kb.button(text=f"{p['title']} — {p['price']}₽", callback_data=f"plan:{p['code']}")
+        kb.button(text=f"{p[title]} — {p[price]}₽", callback_data=f"plan:{p[code]}")
     kb.adjust(1)
     await message.answer("Выберите тариф:", reply_markup=kb.as_markup())
 
@@ -91,7 +91,7 @@ async def cmd_buy(message: types.Message, session: AsyncSession):
 async def cb_open_plans(callback: types.CallbackQuery):
     kb = InlineKeyboardBuilder()
     for p in PLANS:
-        kb.button(text=f"{p['title']} — {p['price']}₽", callback_data=f"plan:{p['code']}")
+        kb.button(text=f"{p[title]} — {p[price]}₽", callback_data=f"plan:{p[code]}")
     kb.adjust(1)
     await callback.message.edit_text("Выберите тариф:", reply_markup=kb.as_markup())
     await callback.answer()
@@ -150,7 +150,7 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
         amount = float(order.amount)
 
     try:
-        pay_url = build_payment_url(order_id, amount, f"Оплата тарифа {plan['title']}")
+        pay_url = build_payment_url(order_id, amount, f"Оплата тарифа {plan[title]}")
     except Exception as e:
         await callback.answer(f"Ошибка Robokassa: {e}", show_alert=True)
         return
