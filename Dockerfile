@@ -4,11 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# System deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates \
-    build-essential gcc libssl-dev libffi-dev \
-  && rm -rf /var/lib/apt/lists/*
+# No system deps required; keep image slim to avoid cache space issues
 
 # Install Python deps first (better layer caching)
 COPY requirements.txt ./
