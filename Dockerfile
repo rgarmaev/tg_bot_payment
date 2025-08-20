@@ -17,7 +17,6 @@ RUN python -m pip install --upgrade pip && \
 
 # Copy app and run script
 COPY app ./app
-COPY .env.example ./.env.example
 COPY run.sh ./run.sh
 RUN chmod +x ./run.sh
 
