@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
+import logging
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -11,6 +12,7 @@ from sqlalchemy import select
 
 from .config import settings
 from yookassa import Payment
+from yookassa.domain.exceptions import UnauthorizedError
 from .models import User, Order, OrderStatus, Subscription
 from .x3ui.client import X3UIClient
 
@@ -199,21 +201,45 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
     if settings.payment_provider == "yookassa":
         from .config import settings as app_settings
         from yookassa import Configuration
+        # Проверяем, что ключи заданы
+        if not (app_settings.yk_shop_id and app_settings.yk_api_key):
+            await callback.answer(
+                "Платёж временно недоступен: не настроены YK_SHOP_ID/YK_API_KEY.",
+                show_alert=True,
+            )
+            return
         Configuration.account_id = app_settings.yk_shop_id
         Configuration.secret_key = app_settings.yk_api_key
         description = f"Оплата тарифа {plan['title']} (заказ #{order_id})"
-        success_url = (app_settings.public_base_url.rstrip("/") + "/payments/yookassa/success") if app_settings.public_base_url else None
-        payment = Payment.create({
-            "amount": {"value": f"{amount:.2f}", "currency": "RUB"},
-            "confirmation": {
-                "type": "redirect",
-                **({"return_url": success_url} if success_url else {}),
-            },
-            "capture": True,
-            "description": description,
-            "metadata": {"order_id": str(order_id)},
-        })
-        pay_url = payment.confirmation.confirmation_url
+        success_url = (
+            app_settings.public_base_url.rstrip("/") + "/payments/yookassa/success"
+        ) if app_settings.public_base_url else None
+        try:
+            payment = Payment.create({
+                "amount": {"value": f"{amount:.2f}", "currency": "RUB"},
+                "confirmation": {
+                    "type": "redirect",
+                    **({"return_url": success_url} if success_url else {}),
+                },
+                "capture": True,
+                "description": description,
+                "metadata": {"order_id": str(order_id)},
+            })
+            pay_url = getattr(getattr(payment, "confirmation", None), "confirmation_url", None)
+        except UnauthorizedError as e:
+            logging.exception("YooKassa Unauthorized while creating payment for order %s", order_id)
+            await callback.answer(
+                "Ошибка авторизации платёжного шлюза. Проверьте YK_SHOP_ID/YK_API_KEY в .env.",
+                show_alert=True,
+            )
+            return
+        except Exception:
+            logging.exception("Failed to create YooKassa payment for order %s", order_id)
+            await callback.answer(
+                "Не удалось создать платёж. Повторите позже.",
+                show_alert=True,
+            )
+            return
     else:
         # fallback (should not be used once Robokassa fully removed)
         pay_url = None
