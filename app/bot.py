@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from .config import settings
-from .payment.robokassa import build_payment_url
 from yookassa import Payment
 from .models import User, Order, OrderStatus, Subscription
 from .x3ui.client import X3UIClient
@@ -226,7 +225,8 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
         })
         pay_url = payment.confirmation.confirmation_url
     else:
-        pay_url = build_payment_url(order_id, amount, f"Оплата тарифа {plan['title']}")
+        # fallback (should not be used once Robokassa fully removed)
+        pay_url = None
 
     kb = InlineKeyboardBuilder()
     kb.button(text="Оплатить", url=pay_url)
