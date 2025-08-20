@@ -11,6 +11,7 @@ from sqlalchemy import select
 
 from .config import settings
 from .payment.robokassa import build_payment_url
+from yookassa import Payment
 from .models import User, Order, OrderStatus, Subscription
 from .x3ui.client import X3UIClient
 
@@ -205,14 +206,30 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
         order_id = order.id
         amount = float(order.amount)
 
-    try:
+    pay_url = None
+    if settings.payment_provider == "yookassa":
+        from .config import settings as app_settings
+        from yookassa import Configuration
+        Configuration.account_id = app_settings.yk_shop_id
+        Configuration.secret_key = app_settings.yk_api_key
+        description = f"Оплата тарифа {plan['title']} (заказ #{order_id})"
+        success_url = (app_settings.public_base_url.rstrip("/") + "/payments/yookassa/success") if app_settings.public_base_url else None
+        payment = Payment.create({
+            "amount": {"value": f"{amount:.2f}", "currency": "RUB"},
+            "confirmation": {
+                "type": "redirect",
+                **({"return_url": success_url} if success_url else {}),
+            },
+            "capture": True,
+            "description": description,
+            "metadata": {"order_id": str(order_id)},
+        })
+        pay_url = payment.confirmation.confirmation_url
+    else:
         pay_url = build_payment_url(order_id, amount, f"Оплата тарифа {plan['title']}")
-    except Exception as e:
-        await callback.answer(f"Ошибка Robokassa: {e}", show_alert=True)
-        return
 
     kb = InlineKeyboardBuilder()
-    kb.button(text="Оплатить через Robokassa", url=pay_url)
+    kb.button(text="Оплатить", url=pay_url)
     kb.button(text="⬅️ Назад к тарифам", callback_data="menu:plans")
     kb.adjust(1)
     await callback.message.edit_text(
