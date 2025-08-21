@@ -315,10 +315,40 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         await message.answer("Счетов не найдено. Используйте /buy.")
         return
     if order.status != OrderStatus.PAID:
-        await message.answer(
-            f"Статус счета #{order.id}: {order.status}. Подождите и повторите."
-        )
-        return
+        # Попробуем подтянуть статус из YooKassa без вебхука
+        if (settings.payment_provider or "").lower() == "yookassa":
+            payment_id: Optional[str] = None
+            if order.external_id and "|" in order.external_id:
+                try:
+                    payment_id = order.external_id.split("|", 1)[1]
+                except Exception:
+                    payment_id = None
+            if payment_id:
+                try:
+                    from yookassa import Configuration
+                    from .config import settings as app_settings
+                    def _clean(v: Optional[str]) -> str:
+                        return (v or "").strip().strip('"').strip("'")
+                    Configuration.account_id = _clean(app_settings.yk_shop_id)
+                    Configuration.secret_key = _clean(app_settings.yk_api_key)
+                    remote = Payment.find_one(payment_id)
+                    remote_status = getattr(remote, "status", None)
+                    if remote_status == "succeeded":
+                        order.status = OrderStatus.PAID
+                        await session.commit()
+                    elif remote_status == "canceled":
+                        order.status = OrderStatus.CANCELED
+                        await session.commit()
+                        await message.answer(f"Оплата отменена. Заказ #{order.id}")
+                        return
+                except Exception:
+                    # Игнорируем ошибки сети/SDK и покажем текущий локальный статус
+                    pass
+        if order.status != OrderStatus.PAID:
+            await message.answer(
+                f"Статус счета #{order.id}: {order.status}. Подождите и повторите."
+            )
+            return
 
     # determine plan days from order code if available
     plan_days = settings.plan_days
