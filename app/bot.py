@@ -246,6 +246,17 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
                     logging.exception("Failed to refresh YooKassa payment %s", getattr(payment, "id", None))
             if not pay_url:
                 logging.error("YooKassa payment has no confirmation_url after refresh: %s", getattr(payment, "id", None))
+            # Сохраним ссылку и payment_id в заказ
+            try:
+                payment_id = getattr(payment, "id", None)
+                ext_value = f"{plan['code']}|{payment_id}" if payment_id else plan['code']
+                async with session.begin():
+                    result = await session.execute(select(Order).where(Order.id == order_id))
+                    upd_order = result.scalar_one()
+                    upd_order.payment_url = pay_url
+                    upd_order.external_id = ext_value
+            except Exception:
+                logging.exception("Failed to save payment data to order %s", order_id)
         except UnauthorizedError as e:
             logging.exception("YooKassa Unauthorized while creating payment for order %s", order_id)
             await callback.answer(
