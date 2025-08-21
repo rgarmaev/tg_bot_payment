@@ -24,12 +24,16 @@ def register_routes(app: FastAPI) -> None:
         event = await request.json()
         obj = event.get("object", {})
         payment_id = obj.get("id")
-        status = obj.get("status")
-        metadata = obj.get("metadata", {})
+        # Перепроверяем платёж у YooKassa (рекомендация quick-start)
+        try:
+            remote = Payment.find_one(payment_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="invalid payment id")
+        metadata = getattr(remote, "metadata", {}) or {}
         inv_id = metadata.get("order_id")
         if not inv_id:
             raise HTTPException(status_code=400, detail="no order id")
-        if status != "succeeded":
+        if getattr(remote, "status", None) != "succeeded":
             return JSONResponse({"ok": True})
         async with async_session() as session:
             result = await session.execute(select(Order).where(Order.id == int(inv_id)))
