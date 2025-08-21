@@ -6,8 +6,9 @@ from yookassa import Configuration, Payment
 
 from ..config import settings
 from ..db import async_session
-from ..models import Order, OrderStatus, User
+from ..models import Order, OrderStatus, User, Subscription
 from ..main import bot
+from ..x3ui.client import X3UIClient
 from sqlalchemy import select
 
 
@@ -62,8 +63,76 @@ def register_routes(app: FastAPI) -> None:
         return JSONResponse({"ok": True})
 
     @app.get("/payments/yookassa/success", response_class=HTMLResponse)
-    async def yk_success():
-        return HTMLResponse("<h1>Оплата принята</h1>")
+    async def yk_success(order_id: int | None = None):
+        # Мгновенная активация после возврата из YooKassa
+        _ensure_config()
+        if not order_id:
+            return HTMLResponse("<h1>Оплата принята</h1><p>Номер заказа не передан. Используйте /check в боте.</p>")
+        async with async_session() as session:
+            result = await session.execute(select(Order).where(Order.id == order_id))
+            order: Order | None = result.scalar_one_or_none()
+            if not order:
+                return HTMLResponse("<h1>Оплата принята</h1><p>Заказ не найден. Используйте /check в боте.</p>")
+            # Получим payment_id из external_id вида code|payment_id
+            payment_id = None
+            if order.external_id and "|" in order.external_id:
+                try:
+                    payment_id = order.external_id.split("|", 1)[1]
+                except Exception:
+                    payment_id = None
+            status_ok = False
+            if payment_id:
+                try:
+                    remote = Payment.find_one(payment_id)
+                    status_ok = getattr(remote, "status", None) == "succeeded"
+                except Exception:
+                    status_ok = False
+            # Если статус пройден — отмечаем заказ как оплачен и создаём подписку
+            if status_ok:
+                if order.status != OrderStatus.PAID:
+                    order.status = OrderStatus.PAID
+                    await session.commit()
+                # Получим пользователя
+                user_result = await session.execute(select(User).where(User.id == order.user_id))
+                user = user_result.scalar_one_or_none()
+                # Определим срок плана из кода
+                plan_days_map = {"m1": 30, "m3": 90, "m6": 180, "y1": 365}
+                plan_code = order.external_id.split("|", 1)[0] if order.external_id else None
+                plan_days = plan_days_map.get(plan_code, settings.plan_days)
+                # Создадим клиента в x3-ui и сохраним подписку
+                async with X3UIClient(
+                    settings.x3ui_base_url,
+                    settings.x3ui_username,
+                    settings.x3ui_password,
+                ) as x3:
+                    created = await x3.add_client(
+                        inbound_id=settings.x3ui_inbound_id,
+                        days=plan_days,
+                        traffic_gb=settings.x3ui_client_traffic_gb,
+                        email_note=f"tg_{user.tg_user_id if user else 'unknown'}",
+                    )
+                sub = Subscription(
+                    user_id=order.user_id,
+                    inbound_id=settings.x3ui_inbound_id,
+                    xray_uuid=created.uuid,
+                    expires_at=None,
+                    config_url=created.config_url,
+                    is_active=True,
+                )
+                session.add(sub)
+                await session.commit()
+                # Уведомим пользователя в Telegram
+                if bot and user:
+                    try:
+                        text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"
+                        if created.config_url:
+                            text += f"Ссылка конфигурации: {created.config_url}"
+                        await bot.send_message(user.tg_user_id, text)
+                    except Exception:
+                        pass
+                return HTMLResponse("<h1>Оплата подтверждена</h1><p>Подписка активирована. Проверьте сообщения в Telegram.</p>")
+            # Иначе сообщим ожидание
+            return HTMLResponse("<h1>Оплата в обработке</h1><p>Мы ещё не получили подтверждение от YooKassa. Ожидайте или используйте /check в боте.</p>")
 
     @app.get("/payments/yookassa/fail", response_class=HTMLResponse)
     async def yk_fail():
