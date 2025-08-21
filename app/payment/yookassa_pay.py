@@ -6,7 +6,8 @@ from yookassa import Configuration, Payment
 
 from ..config import settings
 from ..db import async_session
-from ..models import Order, OrderStatus
+from ..models import Order, OrderStatus, User
+from ..main import bot
 from sqlalchemy import select
 
 
@@ -33,15 +34,31 @@ def register_routes(app: FastAPI) -> None:
         inv_id = metadata.get("order_id")
         if not inv_id:
             raise HTTPException(status_code=400, detail="no order id")
-        if getattr(remote, "status", None) != "succeeded":
-            return JSONResponse({"ok": True})
+        status = getattr(remote, "status", None)
         async with async_session() as session:
             result = await session.execute(select(Order).where(Order.id == int(inv_id)))
             order: Order | None = result.scalar_one_or_none()
             if not order:
                 raise HTTPException(status_code=404, detail="order not found")
-            order.status = OrderStatus.PAID
-            await session.commit()
+            # Загрузим пользователя для уведомления
+            user_result = await session.execute(select(User).where(User.id == order.user_id))
+            user: User | None = user_result.scalar_one_or_none()
+            if status == "succeeded":
+                order.status = OrderStatus.PAID
+                await session.commit()
+                if bot and user:
+                    try:
+                        await bot.send_message(user.tg_user_id, f"✅ Оплата принята. Заказ #{order.id} на {order.amount}₽")
+                    except Exception:
+                        pass
+            elif status == "canceled":
+                order.status = OrderStatus.CANCELED
+                await session.commit()
+                if bot and user:
+                    try:
+                        await bot.send_message(user.tg_user_id, f"❌ Оплата отменена. Заказ #{order.id}")
+                    except Exception:
+                        pass
         return JSONResponse({"ok": True})
 
     @app.get("/payments/yookassa/success", response_class=HTMLResponse)
