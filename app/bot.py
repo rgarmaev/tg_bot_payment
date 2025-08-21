@@ -211,6 +211,14 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
             return
         Configuration.account_id = app_settings.yk_shop_id
         Configuration.secret_key = app_settings.yk_api_key
+        try:
+            masked = ("test_" if app_settings.yk_api_key.startswith("test_") else "live_") + "***"
+        except Exception:
+            masked = "***"
+        logging.info(
+            "Using YooKassa config: shop_id=%s, key=%s (len=%s)",
+            str(app_settings.yk_shop_id), masked, len(app_settings.yk_api_key or ""),
+        )
         description = f"Оплата тарифа {plan['title']} (заказ #{order_id})"
         success_url = (
             app_settings.public_base_url.rstrip("/") + "/payments/yookassa/success"
