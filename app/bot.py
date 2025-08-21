@@ -13,6 +13,7 @@ from sqlalchemy import select
 from .config import settings
 from yookassa import Payment
 from yookassa.domain.exceptions import UnauthorizedError
+from uuid import uuid4
 from .models import User, Order, OrderStatus, Subscription
 from .x3ui.client import X3UIClient
 
@@ -215,6 +216,7 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
             app_settings.public_base_url.rstrip("/") + "/payments/yookassa/success"
         ) if app_settings.public_base_url else None
         try:
+            idempotence_key = f"order-{order_id}-{uuid4()}"
             payment = Payment.create({
                 "amount": {"value": f"{amount:.2f}", "currency": "RUB"},
                 "confirmation": {
@@ -224,7 +226,7 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
                 "capture": True,
                 "description": description,
                 "metadata": {"order_id": str(order_id)},
-            })
+            }, idempotence_key)
             pay_url = getattr(getattr(payment, "confirmation", None), "confirmation_url", None)
         except UnauthorizedError as e:
             logging.exception("YooKassa Unauthorized while creating payment for order %s", order_id)
