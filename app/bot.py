@@ -199,7 +199,7 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
         amount = float(order.amount)
 
     pay_url = None
-    if settings.payment_provider == "yookassa":
+    if (settings.payment_provider or "").lower() == "yookassa":
         from .config import settings as app_settings
         from yookassa import Configuration
         # Проверяем, что ключи заданы
@@ -243,8 +243,11 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
             )
             return
     else:
-        # fallback (should not be used once Robokassa fully removed)
-        pay_url = None
+        await callback.answer(
+            "Платёжный провайдер не настроен. Установите PAYMENT_PROVIDER=yookassa.",
+            show_alert=True,
+        )
+        return
 
     if not pay_url:
         await callback.answer("Не удалось сформировать ссылку оплаты", show_alert=True)

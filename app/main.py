@@ -70,5 +70,5 @@ async def favicon():
 	return Response(status_code=204)
 
 
-if settings.payment_provider == "yookassa":
+if (settings.payment_provider or "").lower() == "yookassa":
 	register_yookassa_routes(app)
