@@ -227,7 +227,25 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
                 "description": description,
                 "metadata": {"order_id": str(order_id)},
             }, idempotence_key)
-            pay_url = getattr(getattr(payment, "confirmation", None), "confirmation_url", None)
+            confirmation = getattr(payment, "confirmation", None)
+            pay_url = None
+            if confirmation is not None:
+                # SDK объект или dict
+                pay_url = getattr(confirmation, "confirmation_url", None)
+                if not pay_url and isinstance(confirmation, dict):
+                    pay_url = confirmation.get("confirmation_url")
+            if not pay_url:
+                # Попробуем получить платёж повторно (иногда SDK возвращает объект без ссылки сразу)
+                try:
+                    refreshed = Payment.find_one(getattr(payment, "id", None))
+                    ref_conf = getattr(refreshed, "confirmation", None)
+                    pay_url = getattr(ref_conf, "confirmation_url", None)
+                    if not pay_url and isinstance(ref_conf, dict):
+                        pay_url = ref_conf.get("confirmation_url")
+                except Exception:
+                    logging.exception("Failed to refresh YooKassa payment %s", getattr(payment, "id", None))
+            if not pay_url:
+                logging.error("YooKassa payment has no confirmation_url after refresh: %s", getattr(payment, "id", None))
         except UnauthorizedError as e:
             logging.exception("YooKassa Unauthorized while creating payment for order %s", order_id)
             await callback.answer(
