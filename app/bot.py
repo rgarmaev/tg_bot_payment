@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 import logging
+import asyncio
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -16,6 +17,7 @@ from yookassa.domain.exceptions import UnauthorizedError
 from uuid import uuid4
 from .models import User, Order, OrderStatus, Subscription
 from .x3ui.client import X3UIClient
+from .db import async_session
 
 
 router = Router()
@@ -39,6 +41,108 @@ def get_plan_by_code(code: str) -> Optional[dict]:
         if p["code"] == code:
             return p
     return None
+
+
+async def _try_refresh_order_status(order_id: int) -> Optional[str]:
+    """Возвращает новый статус ('paid'/'canceled'/None), если удалось обновить."""
+    from yookassa import Payment, Configuration
+    from .config import settings as app_settings
+    def _clean(v: Optional[str]) -> str:
+        return (v or "").strip().strip('"').strip("'")
+    if (settings.payment_provider or "").lower() != "yookassa":
+        return None
+    async with async_session() as s:
+        res = await s.execute(select(Order).where(Order.id == order_id))
+        order = res.scalar_one_or_none()
+        if not order:
+            return None
+        payment_id: Optional[str] = None
+        if order.external_id and "|" in order.external_id:
+            try:
+                payment_id = order.external_id.split("|", 1)[1]
+            except Exception:
+                payment_id = None
+        if not payment_id:
+            return None
+        try:
+            Configuration.account_id = _clean(app_settings.yk_shop_id)
+            Configuration.secret_key = _clean(app_settings.yk_api_key)
+            remote = Payment.find_one(payment_id)
+            remote_status = getattr(remote, "status", None)
+            if remote_status == "succeeded" and order.status != OrderStatus.PAID:
+                order.status = OrderStatus.PAID
+                await s.commit()
+                return OrderStatus.PAID
+            if remote_status == "canceled" and order.status != OrderStatus.CANCELED:
+                order.status = OrderStatus.CANCELED
+                await s.commit()
+                return OrderStatus.CANCELED
+        except Exception:
+            logging.exception("Auto-check: failed to refresh order %s", order_id)
+    return None
+
+
+async def _auto_check_and_activate(bot: types.Bot, tg_user_id: int, order_id: int) -> None:
+    """Три попытки с паузой 3 мин: если платёж прошёл — активируем подписку и уведомляем пользователя."""
+    for attempt in range(3):
+        try:
+            # Ждём 3 минуты перед каждой попыткой (итого: 3, 6, 9 минут)
+            await asyncio.sleep(180)
+            new_status = await _try_refresh_order_status(order_id)
+            if new_status == OrderStatus.PAID:
+                # Создадим подписку как в /check
+                async with async_session() as s:
+                    res_user = await s.execute(select(User).where(User.tg_user_id == tg_user_id))
+                    user = res_user.scalar_one_or_none()
+                    res_order = await s.execute(select(Order).where(Order.id == order_id))
+                    order = res_order.scalar_one_or_none()
+                    if not user or not order:
+                        return
+                    # Определим дни по внешнему коду
+                    plan_days = settings.plan_days
+                    if order.external_id:
+                        plan_code = order.external_id.split("|", 1)[0] if "|" in order.external_id else order.external_id
+                        p = get_plan_by_code(plan_code)
+                        if p:
+                            plan_days = p["days"]
+                
+                async with X3UIClient(
+                    settings.x3ui_base_url,
+                    settings.x3ui_username,
+                    settings.x3ui_password,
+                ) as x3:
+                    created = await x3.add_client(
+                        inbound_id=settings.x3ui_inbound_id,
+                        days=plan_days,
+                        traffic_gb=settings.x3ui_client_traffic_gb,
+                        email_note=f"tg_{tg_user_id}",
+                    )
+                async with async_session() as s:
+                    res_user = await s.execute(select(User).where(User.tg_user_id == tg_user_id))
+                    user = res_user.scalar_one()
+                    sub = Subscription(
+                        user_id=user.id,
+                        inbound_id=settings.x3ui_inbound_id,
+                        xray_uuid=created.uuid,
+                        expires_at=None,
+                        config_url=created.config_url,
+                        is_active=True,
+                    )
+                    s.add(sub)
+                    await s.commit()
+                text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"
+                if created.config_url:
+                    text += f"Ссылка конфигурации: {created.config_url}"
+                else:
+                    text += "Получите ссылку в панели."
+                await bot.send_message(tg_user_id, text)
+                return
+            elif new_status == OrderStatus.CANCELED:
+                await bot.send_message(tg_user_id, f"Оплата отменена. Заказ #{order_id}")
+                return
+        except Exception:
+            logging.exception("Auto-check attempt %s failed for order %s", attempt + 1, order_id)
+        # Переходим к следующей попытке (если ещё есть)
 
 
 async def ensure_user(session: AsyncSession, tg_user_id: int) -> User:
@@ -300,6 +404,12 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
         reply_markup=kb.as_markup(),
     )
     await callback.answer()
+
+    # Автопроверка оплаты: 3 попытки каждые 3 минуты без вебхука
+    try:
+        asyncio.create_task(_auto_check_and_activate(callback.bot, callback.from_user.id, order_id))
+    except Exception:
+        logging.exception("Failed to schedule auto check for order %s", order_id)
 
 
 @router.message(Command("check"))
