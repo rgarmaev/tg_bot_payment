@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 import asyncio
+from uuid import uuid4
+from urllib.parse import urlsplit, urlunsplit
 
 from aiogram import Router, types, F
 from aiogram.filters import Command
@@ -14,7 +16,6 @@ from sqlalchemy import select
 from .config import settings
 from yookassa import Payment
 from yookassa.domain.exceptions import UnauthorizedError
-from uuid import uuid4
 from .models import User, Order, OrderStatus, Subscription
 from .x3ui.client import X3UIClient
 from .db import async_session
@@ -41,6 +42,18 @@ def get_plan_by_code(code: str) -> Optional[dict]:
         if p["code"] == code:
             return p
     return None
+
+
+def _origin_from_base_url(base_url: Optional[str]) -> Optional[str]:
+    if not base_url:
+        return None
+    try:
+        parts = urlsplit(base_url)
+        if not parts.scheme or not parts.netloc:
+            return None
+        return urlunsplit((parts.scheme, parts.netloc, "", "", ""))
+    except Exception:
+        return None
 
 
 async def _try_refresh_order_status(order_id: int) -> Optional[str]:
@@ -326,9 +339,8 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
             str(Configuration.account_id), masked, len(Configuration.secret_key or ""),
         )
         description = f"Оплата тарифа {plan['title']} (заказ #{order_id})"
-        success_url = (
-            app_settings.public_base_url.rstrip("/") + "/payments/yookassa/success"
-        ) if app_settings.public_base_url else None
+        origin = _origin_from_base_url(app_settings.public_base_url)
+        success_url = (origin + "/payments/yookassa/success") if origin else None
         try:
             idempotence_key = f"order-{order_id}-{uuid4()}"
             payment = Payment.create({
@@ -463,7 +475,7 @@ async def cmd_check(message: types.Message, session: AsyncSession):
     # determine plan days from order code if available
     plan_days = settings.plan_days
     if order.external_id:
-        p = get_plan_by_code(order.external_id)
+        p = get_plan_by_code(order.external_id if "|" not in order.external_id else order.external_id.split("|", 1)[0])
         if p:
             plan_days = p["days"]
 
