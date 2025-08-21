@@ -209,15 +209,17 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
                 show_alert=True,
             )
             return
-        Configuration.account_id = app_settings.yk_shop_id
-        Configuration.secret_key = app_settings.yk_api_key
+        def _clean(value: str | None) -> str:
+            return (value or "").strip().strip('"').strip("'")
+        Configuration.account_id = _clean(app_settings.yk_shop_id)
+        Configuration.secret_key = _clean(app_settings.yk_api_key)
         try:
-            masked = ("test_" if app_settings.yk_api_key.startswith("test_") else "live_") + "***"
+            masked = ("test_" if Configuration.secret_key.startswith("test_") else "live_") + "***"
         except Exception:
             masked = "***"
         logging.info(
             "Using YooKassa config: shop_id=%s, key=%s (len=%s)",
-            str(app_settings.yk_shop_id), masked, len(app_settings.yk_api_key or ""),
+            str(Configuration.account_id), masked, len(Configuration.secret_key or ""),
         )
         description = f"Оплата тарифа {plan['title']} (заказ #{order_id})"
         success_url = (
