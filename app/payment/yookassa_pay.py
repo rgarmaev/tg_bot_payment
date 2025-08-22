@@ -9,6 +9,7 @@ from ..db import async_session
 from ..models import Order, OrderStatus, User, Subscription
 from ..x3ui.client import X3UIClient
 from sqlalchemy import select
+from datetime import datetime, timedelta
 
 
 def _ensure_config():
@@ -100,6 +101,7 @@ def register_routes(app: FastAPI) -> None:
                 plan_days_map = {"m1": 30, "m3": 90, "m6": 180, "y1": 365}
                 plan_code = order.external_id.split("|", 1)[0] if order.external_id else None
                 plan_days = plan_days_map.get(plan_code, settings.plan_days)
+                expires_at = datetime.utcnow() + timedelta(days=plan_days)
                 # Создадим клиента в x3-ui и сохраним подписку
                 async with X3UIClient(
                     settings.x3ui_base_url,
@@ -112,12 +114,20 @@ def register_routes(app: FastAPI) -> None:
                         traffic_gb=settings.x3ui_client_traffic_gb,
                         email_note=f"tg_{user.tg_user_id if user else 'unknown'}",
                     )
+                    # Попробуем собрать ссылку конфигурации из inbound
+                    cfg_url = None
+                    try:
+                        inbound = await x3.get_inbound(settings.x3ui_inbound_id)
+                        if inbound:
+                            cfg_url = x3.build_vless_url(inbound, created.uuid, f"tg_{user.tg_user_id}")
+                    except Exception:
+                        cfg_url = None
                 sub = Subscription(
                     user_id=order.user_id,
                     inbound_id=settings.x3ui_inbound_id,
                     xray_uuid=created.uuid,
-                    expires_at=None,
-                    config_url=created.config_url,
+                    expires_at=expires_at,
+                    config_url=cfg_url or created.config_url,
                     is_active=True,
                 )
                 session.add(sub)
@@ -127,8 +137,8 @@ def register_routes(app: FastAPI) -> None:
                 if bot and user:
                     try:
                         text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"
-                        if created.config_url:
-                            text += f"Ссылка конфигурации: {created.config_url}"
+                        if cfg_url or created.config_url:
+                            text += f"Ссылка конфигурации: {cfg_url or created.config_url}"
                         await bot.send_message(user.tg_user_id, text)
                     except Exception:
                         pass
