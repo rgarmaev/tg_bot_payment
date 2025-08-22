@@ -119,7 +119,8 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                         try:
                             inbound = await x3.get_inbound(settings.x3ui_inbound_id)
                             if inbound:
-                                cfg_url = x3.build_vless_url(inbound, created.uuid, f"tg_{message.from_user.id}")
+                                label_base = (message.from_user.username or f"user{message.from_user.id}")
+                                cfg_url = x3.build_vless_url(inbound, created.uuid, f"iphone-{label_base}")
                         except Exception:
                             cfg_url = None
                     # subscription URL
@@ -481,7 +482,8 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         try:
             inbound = await x3.get_inbound(settings.x3ui_inbound_id)
             if inbound:
-                cfg_url = x3.build_vless_url(inbound, created.uuid, f"tg_{message.from_user.id}")
+                label_base = (message.from_user.username or f"user{message.from_user.id}")
+                cfg_url = x3.build_vless_url(inbound, created.uuid, f"iphone-{label_base}")
         except Exception:
             cfg_url = None
     # subscription URL (if configured)
