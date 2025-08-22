@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import httpx
+from urllib.parse import urlsplit
 
 
 @dataclass
@@ -23,6 +24,11 @@ class X3UIClient:
         self.password = password
         self._client = httpx.AsyncClient(base_url=self.base_url, timeout=15)
         self._log = logging.getLogger("x3ui")
+        try:
+            parsed = urlsplit(self.base_url)
+            self._base_path = parsed.path.strip("/")
+        except Exception:
+            self._base_path = ""
 
     async def __aenter__(self) -> "X3UIClient":
         return self
@@ -30,20 +36,40 @@ class X3UIClient:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         await self._client.aclose()
 
+    def _candidates(self, subpaths: list[str]) -> list[str]:
+        candidates: list[str] = []
+        prefixes = ["", self._base_path] if self._base_path else [""]
+        for prefix in prefixes:
+            for sp in subpaths:
+                sp_clean = sp.lstrip("/")
+                if prefix:
+                    candidates.append(f"/{prefix}/{sp_clean}")
+                else:
+                    candidates.append(f"/{sp_clean}")
+        # de-duplicate preserving order
+        seen = set()
+        uniq: list[str] = []
+        for p in candidates:
+            if p not in seen:
+                seen.add(p)
+                uniq.append(p)
+        return uniq
+
     async def login(self) -> None:
         if not (self.username and self.password):
             return
-        try:
-            resp = await self._client.post(
-                "/login", data={"username": self.username, "password": self.password}
-            )
-            resp.raise_for_status()
-        except Exception:
+        paths = self._candidates(["login"])  # e.g., /login and /x3ui/login
+        for p in paths:
             try:
-                resp = await self._client.post(
-                    "/login", json={"username": self.username, "password": self.password}
-                )
-                resp.raise_for_status()
+                resp = await self._client.post(p, data={"username": self.username, "password": self.password})
+                if 200 <= resp.status_code < 400:
+                    return
+            except Exception:
+                pass
+            try:
+                resp = await self._client.post(p, json={"username": self.username, "password": self.password})
+                if 200 <= resp.status_code < 400:
+                    return
             except Exception:
                 pass
 
@@ -61,7 +87,6 @@ class X3UIClient:
         if traffic_gb is not None:
             total_gb_bytes = int(traffic_gb) * 1024 * 1024 * 1024
 
-        # Prefer 3x-ui v2.6.2 API first
         payload_variants = [
             {
                 "inboundId": inbound_id,
@@ -91,12 +116,13 @@ class X3UIClient:
             },
         ]
 
-        endpoints = [
-            "/panel/api/inbounds/addClient",  # 3x-ui v2.6.2
-            "/api/inbounds/addClient",
-            "/panel/inbound/addClient",
-            "/xui/inbound/addClient",
+        subpaths = [
+            "panel/api/inbounds/addClient",  # 3x-ui v2.6.2
+            "api/inbounds/addClient",
+            "panel/inbound/addClient",
+            "xui/inbound/addClient",
         ]
+        endpoints = self._candidates(subpaths)
 
         for endpoint in endpoints:
             for payload in payload_variants:
@@ -117,11 +143,14 @@ class X3UIClient:
 
     async def get_inbound(self, inbound_id: int) -> Optional[dict]:
         await self.login()
-        endpoints = [
-            f"/panel/api/inbounds/get/{inbound_id}",
-            "/panel/api/inbounds/list",
+        subpaths = [
+            f"panel/api/inbounds/get/{inbound_id}",
+            "panel/api/inbounds/list",
+            f"api/inbounds/get/{inbound_id}",
+            "api/inbounds/list",
         ]
-        for ep in endpoints:
+        paths = self._candidates(subpaths)
+        for ep in paths:
             try:
                 resp = await self._client.get(ep)
                 if resp.status_code == 200:
