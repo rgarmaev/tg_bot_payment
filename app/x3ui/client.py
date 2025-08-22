@@ -132,6 +132,9 @@ class X3UIClient:
                     body = resp.text
                     self._log.debug("x3-ui addClient %s -> %s %s", endpoint, resp.status_code, body[:400])
                     if resp.status_code == 200:
+                        # Некоторые сборки возвращают пустое тело при успехе
+                        if not body or not body.strip():
+                            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
                         lower = body.lower()
                         if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
                             return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
