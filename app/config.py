@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     x3ui_inbound_id: int = 1
     x3ui_client_days: int = 30
     x3ui_client_traffic_gb: int | None = None  # None = unlimited
+    # Subscription service settings (optional)
+    x3ui_subscription_port: int | None = None
+    x3ui_subscription_path: str | None = None  # e.g. "/xfvg/"
 
     # Public base URL (accepts env PUBLIC_BASE_URL or BASE_URL)
     public_base_url: str | None = Field(
