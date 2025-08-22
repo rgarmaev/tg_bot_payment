@@ -10,6 +10,7 @@ from ..models import Order, OrderStatus, User, Subscription
 from ..x3ui.client import X3UIClient
 from sqlalchemy import select
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit, urlunsplit
 
 
 def _ensure_config():
@@ -17,6 +18,18 @@ def _ensure_config():
         raise RuntimeError("YooKassa credentials are not set")
     Configuration.account_id = settings.yk_shop_id
     Configuration.secret_key = settings.yk_api_key
+
+
+def _origin_from_base(base_url: str | None) -> str | None:
+    if not base_url:
+        return None
+    try:
+        p = urlsplit(base_url)
+        if not p.scheme or not p.netloc:
+            return None
+        return urlunsplit((p.scheme, p.netloc, "", "", ""))
+    except Exception:
+        return None
 
 
 def register_routes(app: FastAPI) -> None:
@@ -122,12 +135,22 @@ def register_routes(app: FastAPI) -> None:
                             cfg_url = x3.build_vless_url(inbound, created.uuid, f"tg_{user.tg_user_id}")
                     except Exception:
                         cfg_url = None
+                # Попробуем собрать ссылку подписки, если включена в панели
+                sub_url = None
+                origin = _origin_from_base(settings.public_base_url)
+                if origin and settings.x3ui_subscription_port and settings.x3ui_subscription_path:
+                    p = settings.x3ui_subscription_path
+                    if not p.startswith("/"):
+                        p = "/" + p
+                    if not p.endswith("/"):
+                        p = p + "/"
+                    sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{p}{created.uuid}"
                 sub = Subscription(
                     user_id=order.user_id,
                     inbound_id=settings.x3ui_inbound_id,
                     xray_uuid=created.uuid,
                     expires_at=expires_at,
-                    config_url=cfg_url or created.config_url,
+                    config_url=cfg_url or sub_url or created.config_url,
                     is_active=True,
                 )
                 session.add(sub)
@@ -137,8 +160,8 @@ def register_routes(app: FastAPI) -> None:
                 if bot and user:
                     try:
                         text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"
-                        if cfg_url or created.config_url:
-                            text += f"Ссылка конфигурации: {cfg_url or created.config_url}"
+                        if cfg_url or sub_url or created.config_url:
+                            text += f"Ссылка конфигурации: {cfg_url or sub_url or created.config_url}"
                         await bot.send_message(user.tg_user_id, text)
                     except Exception:
                         pass
