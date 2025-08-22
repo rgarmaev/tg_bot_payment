@@ -135,7 +135,7 @@ def register_routes(app: FastAPI) -> None:
                             cfg_url = x3.build_vless_url(inbound, created.uuid, f"tg_{user.tg_user_id}")
                     except Exception:
                         cfg_url = None
-                # Попробуем собрать ссылку подписки, если включена в панели
+                # Попробуем собрать ссылку подписки по email (note)
                 sub_url = None
                 origin = _origin_from_base(settings.public_base_url)
                 if origin and settings.x3ui_subscription_port and settings.x3ui_subscription_path:
@@ -144,7 +144,9 @@ def register_routes(app: FastAPI) -> None:
                         p = "/" + p
                     if not p.endswith("/"):
                         p = p + "/"
-                    sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{p}{created.uuid}"
+                    sub_token = created.note or f"tg_{user.tg_user_id if user else 'unknown'}"
+                    host = origin.split('://')[1].split('/')[0].split(':')[0]
+                    sub_url = f"{origin.split('://')[0]}://{host}:{settings.x3ui_subscription_port}{p}{sub_token}"
                 sub = Subscription(
                     user_id=order.user_id,
                     inbound_id=settings.x3ui_inbound_id,
