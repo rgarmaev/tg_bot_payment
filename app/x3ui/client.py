@@ -8,6 +8,7 @@ from typing import Optional
 
 import httpx
 from urllib.parse import urlsplit
+import json
 
 
 @dataclass
@@ -113,6 +114,22 @@ class X3UIClient:
                         }
                     ]
                 },
+            },
+            # Некоторые форки ожидают строковый settings
+            {
+                "id": inbound_id,
+                "settings": json.dumps({
+                    "clients": [
+                        {
+                            "id": client_uuid,
+                            "email": email_note,
+                            "enable": True,
+                            "limitIp": 0,
+                            "totalGB": total_gb_bytes or 0,
+                            "expiryTime": expiry_ms,
+                        }
+                    ]
+                })
             },
         ]
 
