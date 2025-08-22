@@ -7,7 +7,6 @@ from yookassa import Configuration, Payment
 from ..config import settings
 from ..db import async_session
 from ..models import Order, OrderStatus, User, Subscription
-from ..main import bot
 from ..x3ui.client import X3UIClient
 from sqlalchemy import select
 
@@ -47,6 +46,7 @@ def register_routes(app: FastAPI) -> None:
             if status == "succeeded":
                 order.status = OrderStatus.PAID
                 await session.commit()
+                bot = getattr(request.app.state, "bot", None)
                 if bot and user:
                     try:
                         await bot.send_message(user.tg_user_id, f"✅ Оплата принята. Заказ #{order.id} на {order.amount}₽")
@@ -55,6 +55,7 @@ def register_routes(app: FastAPI) -> None:
             elif status == "canceled":
                 order.status = OrderStatus.CANCELED
                 await session.commit()
+                bot = getattr(request.app.state, "bot", None)
                 if bot and user:
                     try:
                         await bot.send_message(user.tg_user_id, f"❌ Оплата отменена. Заказ #{order.id}")
@@ -63,7 +64,7 @@ def register_routes(app: FastAPI) -> None:
         return JSONResponse({"ok": True})
 
     @app.get("/payments/yookassa/success", response_class=HTMLResponse)
-    async def yk_success(order_id: int | None = None):
+    async def yk_success(request: Request, order_id: int | None = None):
         # Мгновенная активация после возврата из YooKassa
         _ensure_config()
         if not order_id:
@@ -122,6 +123,7 @@ def register_routes(app: FastAPI) -> None:
                 session.add(sub)
                 await session.commit()
                 # Уведомим пользователя в Telegram
+                bot = getattr(request.app.state, "bot", None)
                 if bot and user:
                     try:
                         text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"

@@ -40,6 +40,8 @@ async def lifespan(app: FastAPI):
         dispatcher.message.middleware(SessionMiddleware())
         dispatcher.callback_query.middleware(SessionMiddleware())
         dispatcher.include_router(bot_router)
+        # expose bot for routes
+        app.state.bot = bot
         polling_task = asyncio.create_task(dispatcher.start_polling(bot))
     try:
         yield
@@ -62,12 +64,12 @@ async def healthz():
 
 @app.get("/", include_in_schema=False, response_class=PlainTextResponse)
 async def root():
-	return "OK"
+    return "OK"
 
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
-	return Response(status_code=204)
+    return Response(status_code=204)
 
 
 if (settings.payment_provider or "").lower() == "yookassa":

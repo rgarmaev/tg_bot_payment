@@ -340,7 +340,7 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
         )
         description = f"Оплата тарифа {plan['title']} (заказ #{order_id})"
         origin = _origin_from_base_url(app_settings.public_base_url)
-        success_url = (origin + "/payments/yookassa/success") if origin else None
+        success_url = (origin + f"/payments/yookassa/success?order_id={order_id}") if origin else None
         try:
             idempotence_key = f"order-{order_id}-{uuid4()}"
             payment = Payment.create({
