@@ -76,6 +76,88 @@ async def cmd_start(message: types.Message, session: AsyncSession):
     async with session.begin():
         await ensure_user(session, message.from_user.id)
 
+    # Deep-link: /start paid_{order_id} -> сразу проверяем оплату и активируем
+    try:
+        if message.text and " " in message.text:
+            payload = message.text.split(" ", 1)[1].strip()
+            if payload.startswith("paid_"):
+                try:
+                    order_id = int(payload.split("_", 1)[1])
+                except Exception:
+                    order_id = None
+                if order_id:
+                    await message.answer("Проверяю оплату...")
+                    # Попробуем обновить статус из YooKassa
+                    upd = await _try_refresh_order_status(order_id)
+                    # Если не успел обновиться, просто упадём в обычный /check
+                    if upd != OrderStatus.PAID:
+                        await cmd_check(message, session)
+                        return
+                    # Создадим подписку как в /check
+                    plan_days = settings.plan_days
+                    result_order = await session.execute(select(Order).where(Order.id == order_id))
+                    order = result_order.scalar_one_or_none()
+                    if order and order.external_id:
+                        plan_code = order.external_id.split("|", 1)[0] if "|" in order.external_id else order.external_id
+                        p = get_plan_by_code(plan_code)
+                        if p:
+                            plan_days = p["days"]
+                    expires_at = datetime.utcnow() + timedelta(days=plan_days)
+                    async with X3UIClient(
+                        settings.x3ui_base_url,
+                        settings.x3ui_username,
+                        settings.x3ui_password,
+                    ) as x3:
+                        created = await x3.add_client(
+                            inbound_id=settings.x3ui_inbound_id,
+                            days=plan_days,
+                            traffic_gb=settings.x3ui_client_traffic_gb,
+                            email_note=f"tg_{message.from_user.id}",
+                        )
+                        # Сформируем ссылки
+                        cfg_url = None
+                        try:
+                            inbound = await x3.get_inbound(settings.x3ui_inbound_id)
+                            if inbound:
+                                cfg_url = x3.build_vless_url(inbound, created.uuid, f"tg_{message.from_user.id}")
+                        except Exception:
+                            cfg_url = None
+                    # subscription URL
+                    sub_url = None
+                    origin = _origin_from_base_url(settings.public_base_url)
+                    if origin and settings.x3ui_subscription_port and settings.x3ui_subscription_path:
+                        pth = settings.x3ui_subscription_path
+                        if not pth.startswith("/"):
+                            pth = "/" + pth
+                        if not pth.endswith("/"):
+                            pth = pth + "/"
+                        sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{created.uuid}"
+                    # Сохраним подписку
+                    result_user = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
+                    user = result_user.scalar_one()
+                    sub = Subscription(
+                        user_id=user.id,
+                        inbound_id=settings.x3ui_inbound_id,
+                        xray_uuid=created.uuid,
+                        expires_at=expires_at,
+                        config_url=cfg_url or sub_url or created.config_url,
+                        is_active=True,
+                    )
+                    session.add(sub)
+                    await session.commit()
+
+                    text = (
+                        "Оплата подтверждена и подписка создана.\n"
+                        f"UUID: {created.uuid}\n"
+                    )
+                    if cfg_url or sub_url or created.config_url:
+                        text += f"Ссылка конфигурации: {cfg_url or sub_url or created.config_url}"
+                    await message.answer(text)
+                    return
+    except Exception:
+        # Игнорируем ошибки диплинка и показываем обычное меню
+        pass
+
     kb = InlineKeyboardBuilder()
     kb.button(text="📦 Выбрать тариф", callback_data="menu:plans")
     kb.button(text="📄 Мои подписки", callback_data="menu:subs")
@@ -393,6 +475,24 @@ async def cmd_check(message: types.Message, session: AsyncSession):
             traffic_gb=settings.x3ui_client_traffic_gb,
             email_note=f"tg_{message.from_user.id}",
         )
+        # build config url from inbound if possible
+        cfg_url = None
+        try:
+            inbound = await x3.get_inbound(settings.x3ui_inbound_id)
+            if inbound:
+                cfg_url = x3.build_vless_url(inbound, created.uuid, f"tg_{message.from_user.id}")
+        except Exception:
+            cfg_url = None
+    # subscription URL (if configured)
+    sub_url = None
+    origin = _origin_from_base_url(settings.public_base_url)
+    if origin and settings.x3ui_subscription_port and settings.x3ui_subscription_path:
+        pth = settings.x3ui_subscription_path
+        if not pth.startswith("/"):
+            pth = "/" + pth
+        if not pth.endswith("/"):
+            pth = pth + "/"
+        sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{created.uuid}"
 
     result_user = await session.execute(
         select(User).where(User.tg_user_id == message.from_user.id)
@@ -403,7 +503,7 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         inbound_id=settings.x3ui_inbound_id,
         xray_uuid=created.uuid,
         expires_at=expires_at,
-        config_url=created.config_url,
+        config_url=cfg_url or sub_url or created.config_url,
         is_active=True,
     )
     session.add(sub)
@@ -413,8 +513,8 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         "Оплата подтверждена и подписка создана.\n"
         f"UUID: {created.uuid}\n"
     )
-    if created.config_url:
-        text += f"Ссылка конфигурации: {created.config_url}"
+    if cfg_url or sub_url or created.config_url:
+        text += f"Ссылка конфигурации: {cfg_url or sub_url or created.config_url}"
     else:
         text += "Получите ссылку в панели."
     await message.answer(text)
