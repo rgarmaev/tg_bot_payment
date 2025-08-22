@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-version: "3.9"
 services:
   app:
     build:
@@ -9,27 +7,7 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-    environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - ADMIN_USER_ID=${ADMIN_USER_ID}
-      - PAYMENT_PROVIDER=${PAYMENT_PROVIDER}
-      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
-      - X3UI_BASE_URL=${X3UI_BASE_URL}
-      - X3UI_USERNAME=${X3UI_USERNAME}
-      - X3UI_PASSWORD=${X3UI_PASSWORD}
-      - X3UI_API_KEY=${X3UI_API_KEY}
-      - X3UI_INBOUND_ID=${X3UI_INBOUND_ID}
-      - X3UI_CLIENT_DAYS=${X3UI_CLIENT_DAYS}
-      - X3UI_CLIENT_TRAFFIC_GB=${X3UI_CLIENT_TRAFFIC_GB}
-      - PLAN_NAME=${PLAN_NAME}
-      - PLAN_DAYS=${PLAN_DAYS}
-      - PLAN_PRICE_RUB=${PLAN_PRICE_RUB}
-      - SQLITE_URL=${SQLITE_URL}
-      - ROBOKASSA_LOGIN=${ROBOKASSA_LOGIN}
-      - ROBOKASSA_PASSWORD1=${ROBOKASSA_PASSWORD1}
-      - ROBOKASSA_PASSWORD2=${ROBOKASSA_PASSWORD2}
-      - ROBOKASSA_IS_TEST=${ROBOKASSA_IS_TEST}
-      - ROBOKASSA_CULTURE=${ROBOKASSA_CULTURE}
-      - ROBOKASSA_GATEWAY_URL=${ROBOKASSA_GATEWAY_URL}
-    volumes:
-      - ./.env:/app/.env:ro
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
