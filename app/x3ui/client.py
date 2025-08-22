@@ -94,6 +94,7 @@ class X3UIClient:
                 "client": {
                     "id": client_uuid,
                     "email": email_note,
+                    "subId": email_note,
                     "enable": True,
                     "limitIp": 0,
                     "totalGB": total_gb_bytes or 0,
@@ -107,6 +108,7 @@ class X3UIClient:
                         {
                             "id": client_uuid,
                             "email": email_note,
+                            "subId": email_note,
                             "enable": True,
                             "limitIp": 0,
                             "totalGB": total_gb_bytes or 0,
@@ -123,6 +125,7 @@ class X3UIClient:
                         {
                             "id": client_uuid,
                             "email": email_note,
+                            "subId": email_note,
                             "enable": True,
                             "limitIp": 0,
                             "totalGB": total_gb_bytes or 0,
