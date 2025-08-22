@@ -131,7 +131,8 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                             pth = "/" + pth
                         if not pth.endswith("/"):
                             pth = pth + "/"
-                        sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{created.uuid}"
+                        sub_token = created.note or f"tg_{message.from_user.id}"
+                        sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{sub_token}"
                     # Сохраним подписку
                     result_user = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
                     user = result_user.scalar_one()
@@ -492,7 +493,8 @@ async def cmd_check(message: types.Message, session: AsyncSession):
             pth = "/" + pth
         if not pth.endswith("/"):
             pth = pth + "/"
-        sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{created.uuid}"
+        sub_token = created.note or f"tg_{message.from_user.id}"
+        sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{sub_token}"
 
     result_user = await session.execute(
         select(User).where(User.tg_user_id == message.from_user.id)
