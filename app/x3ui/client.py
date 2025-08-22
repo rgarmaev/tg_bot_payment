@@ -162,32 +162,62 @@ class X3UIClient:
                 headers = ws.get("headers") or {}
                 host = headers.get("Host") or headers.get("host")
             if security in ("tls", "reality"):
-                tls = stream.get("tlsSettings", {})
-                sni = tls.get("serverName")
+                tls = stream.get("tlsSettings") or stream.get("realitySettings") or {}
+                sni = tls.get("serverName") or (tls.get("serverNames")[0] if isinstance(tls.get("serverNames"), list) and tls.get("serverNames") else None)
 
             # Derive server host from PUBLIC_BASE_URL if not present
             from ..config import settings as app_settings
-            if not host and app_settings.public_base_url:
+            public_host = None
+            if app_settings.public_base_url:
                 try:
                     from urllib.parse import urlparse
                     parsed = urlparse(app_settings.public_base_url)
                     if parsed.hostname:
-                        host = parsed.hostname
+                        public_host = parsed.hostname
                 except Exception:
                     pass
-            server = host or sni
+
+            # Build query params
+            params: dict[str, str] = {"encryption": "none"}
+
+            if security == "reality":
+                params["security"] = "reality"
+                reality = stream.get("realitySettings", {})
+                pbk = reality.get("publicKey")
+                sid = None
+                short_id = reality.get("shortId")
+                if isinstance(short_id, list) and short_id:
+                    sid = short_id[0]
+                elif isinstance(short_id, str):
+                    sid = short_id
+                spx = reality.get("spiderX") or "/"
+                fp = reality.get("fingerprint") or "chrome"
+                if pbk:
+                    params["pbk"] = pbk
+                if sid:
+                    params["sid"] = sid
+                if sni:
+                    params["sni"] = sni
+                if fp:
+                    params["fp"] = fp
+                if spx:
+                    params["spx"] = spx
+                # type for tcp
+                params["type"] = network
+            else:
+                if security and security != "none":
+                    params["security"] = security
+                if network == "ws":
+                    params["type"] = "ws"
+                    if path:
+                        params["path"] = path
+                    if host:
+                        params["host"] = host
+
+            # Choose server host
+            server = public_host or host or sni
             if not server or not port:
                 return None
-
-            params = {"encryption": "none"}
-            if security and security != "none":
-                params["security"] = security
-            if network == "ws":
-                params["type"] = "ws"
-                if path:
-                    params["path"] = path
-                if host:
-                    params["host"] = host
 
             from urllib.parse import urlencode, quote
             qs = urlencode(params)
