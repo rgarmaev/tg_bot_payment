@@ -520,7 +520,7 @@ async def cmd_check(message: types.Message, session: AsyncSession):
     if cfg_url or sub_url or created.config_url:
         text += f"Ссылка конфигурации: {cfg_url or sub_url or created.config_url}"
     else:
-        text += "Получите ссылку в панели."
+        text += "Не удалось сгенерировать ссылку автоматически. Получите её в панели администратора."
     await message.answer(text)
 
 

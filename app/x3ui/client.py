@@ -23,7 +23,7 @@ class X3UIClient:
         self.base_url = base_url.rstrip("/")
         self.username = username
         self.password = password
-        self._client = httpx.AsyncClient(base_url=self.base_url, timeout=15)
+        self._client = httpx.AsyncClient(base_url=self.base_url, timeout=15, follow_redirects=True)
         self._log = logging.getLogger("x3ui")
         try:
             parsed = urlsplit(self.base_url)
@@ -136,19 +136,25 @@ class X3UIClient:
             },
         ]
 
-        subpaths = [
-            "panel/api/inbounds/addClient",  # 3x-ui v2.6.2
-            "api/inbounds/addClient",
-            "panel/inbound/addClient",
-            "xui/inbound/addClient",
+        endpoints_json = [
+            "/panel/api/inbounds/addClient",  # 3x-ui v2.6.2+
+            "/api/inbounds/addClient",
         ]
-        endpoints = self._candidates(subpaths)
+        # Older x-ui requires form fields: id + settings (stringified JSON)
+        endpoints_form = [
+            "/panel/inbound/addClient",
+            "/xui/inbound/addClient",
+        ]
+        endpoints_json = self._candidates([p.lstrip("/") for p in endpoints_json])
+        endpoints_form = self._candidates([p.lstrip("/") for p in endpoints_form])
 
-        for endpoint in endpoints:
+        # Try JSON endpoints first
+        for endpoint in endpoints_json:
             for payload in payload_variants:
                 try:
-                    self._log.debug("x3-ui addClient try %s payload=%s", endpoint, "client" if "client" in payload else "settings")
-                    resp = await self._client.post(endpoint, json=payload)
+                    headers = {"Accept": "application/json", "Content-Type": "application/json"}
+                    self._log.debug("x3-ui addClient try %s (json) payload=%s", endpoint, "client" if "client" in payload else "settings")
+                    resp = await self._client.post(endpoint, json=payload, headers=headers)
                     body = resp.text
                     self._log.debug("x3-ui addClient %s -> %s %s", endpoint, resp.status_code, body[:400])
                     if resp.status_code == 200:
@@ -157,10 +163,44 @@ class X3UIClient:
                             return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
                         lower = body.lower()
                         if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
-                            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
+                            # Try to compose a config URL
+                            inbound = await self.get_inbound(inbound_id)
+                            config_url = self.build_vless_url(inbound or {}, client_uuid, email_note)
+                            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
                 except Exception as e:
-                    self._log.warning("x3-ui addClient error on %s: %s", endpoint, e)
+                    self._log.warning("x3-ui addClient json error on %s: %s", endpoint, e)
                     continue
+
+        # Then try legacy form endpoints
+        for endpoint in endpoints_form:
+            try:
+                settings_obj = {
+                    "clients": [
+                        {
+                            "id": client_uuid,
+                            "email": email_note,
+                            "enable": True,
+                            "limitIp": 0,
+                            "totalGB": total_gb_bytes or 0,
+                            "expiryTime": expiry_ms,
+                        }
+                    ]
+                }
+                import json as _json
+                form = {"id": str(inbound_id), "settings": _json.dumps(settings_obj)}
+                self._log.debug("x3-ui addClient try %s (form)", endpoint)
+                resp = await self._client.post(endpoint, data=form)
+                body = resp.text
+                self._log.debug("x3-ui addClient %s -> %s %s", endpoint, resp.status_code, body[:400])
+                if resp.status_code == 200:
+                    lower = body.lower()
+                    if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
+                        inbound = await self.get_inbound(inbound_id)
+                        config_url = self.build_vless_url(inbound or {}, client_uuid, email_note)
+                        return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
+            except Exception as e:
+                self._log.warning("x3-ui addClient form error on %s: %s", endpoint, e)
+                continue
 
         return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
 
