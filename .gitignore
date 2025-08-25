@@ -1,3 +1,17 @@
+phycharm
+phycharm.pub
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.idea/
+.vscode/
+dist/
+build/
+*.sqlite
+*.db
 # Python
 __pycache__/
 *.py[cod]
