@@ -64,16 +64,22 @@ class X3UIClient:
         paths = self._candidates(["login"])  # e.g., /login and /x3ui/login
         for p in paths:
             try:
-                resp = await self._client.post(p, data={"username": self.username, "password": self.password})
+                full_url = f"{self.base_url}{p}"
+                resp = await self._client.post(full_url, data={"username": self.username, "password": self.password})
                 if 200 <= resp.status_code < 400:
+                    self._log.info("Login successful via %s", full_url)
                     return
-            except Exception:
+            except Exception as e:
+                self._log.debug("Login failed via %s: %s", full_url, e)
                 pass
             try:
-                resp = await self._client.post(p, json={"username": self.username, "password": self.password})
+                full_url = f"{self.base_url}{p}"
+                resp = await self._client.post(full_url, json={"username": self.username, "password": self.password})
                 if 200 <= resp.status_code < 400:
+                    self._log.info("Login successful via %s", full_url)
                     return
-            except Exception:
+            except Exception as e:
+                self._log.debug("Login failed via %s: %s", full_url, e)
                 pass
 
     async def add_client(
@@ -107,7 +113,7 @@ class X3UIClient:
         }
 
         # Try the correct endpoint first
-        endpoint = "/panel/api/inbounds/addClient"
+        endpoint = f"{self.base_url}/panel/api/inbounds/addClient"
         try:
             headers = {"Accept": "application/json", "Content-Type": "application/json"}
             self._log.info("x3-ui addClient trying %s with correct payload", endpoint)
@@ -161,9 +167,9 @@ class X3UIClient:
         ]
 
         fallback_endpoints = [
-            "/api/inbounds/addClient",
-            "/panel/inbound/addClient",
-            "/xui/inbound/addClient",
+            f"{self.base_url}/api/inbounds/addClient",
+            f"{self.base_url}/panel/inbound/addClient",
+            f"{self.base_url}/xui/inbound/addClient",
         ]
 
         for endpoint in fallback_endpoints:
@@ -215,7 +221,8 @@ class X3UIClient:
         paths = self._candidates(subpaths)
         for ep in paths:
             try:
-                resp = await self._client.get(ep)
+                full_url = f"{self.base_url}{ep}"
+                resp = await self._client.get(full_url)
                 if resp.status_code == 200:
                     data = resp.json()
                     if isinstance(data, dict):
