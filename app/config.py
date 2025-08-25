@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     x3ui_inbound_id: int = 1
     x3ui_client_days: int = 30
     x3ui_client_traffic_gb: int | None = None  # None = unlimited
+    x3ui_verify_tls: bool = True  # set to False for self-signed certificates
     # Subscription service settings (optional)
     x3ui_subscription_port: int | None = None
     x3ui_subscription_path: str | None = None  # e.g. "/xfvg/"
