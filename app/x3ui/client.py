@@ -257,7 +257,7 @@ class X3UIClient:
                 tls = stream.get("tlsSettings") or stream.get("realitySettings") or {}
                 sni = tls.get("serverName") or (tls.get("serverNames")[0] if isinstance(tls.get("serverNames"), list) and tls.get("serverNames") else None)
 
-            # Derive server host from PUBLIC_BASE_URL if not present
+            # Derive server host from PUBLIC_BASE_URL or X3UI_BASE_URL if not present
             from ..config import settings as app_settings
             public_host = None
             if app_settings.public_base_url:
@@ -268,6 +268,14 @@ class X3UIClient:
                         public_host = parsed.hostname
                 except Exception:
                     pass
+            base_host = None
+            try:
+                from urllib.parse import urlparse as _urlparse
+                parsed_base = _urlparse(self.base_url)
+                if parsed_base.hostname:
+                    base_host = parsed_base.hostname
+            except Exception:
+                base_host = None
 
             # Build query params
             params: dict[str, str] = {"encryption": "none"}
@@ -307,7 +315,7 @@ class X3UIClient:
                         params["host"] = host
 
             # Choose server host
-            server = public_host or host or sni
+            server = public_host or host or sni or base_host
             if not server or not port:
                 return None
 
