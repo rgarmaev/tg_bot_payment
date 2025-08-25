@@ -120,6 +120,7 @@ def register_routes(app: FastAPI) -> None:
                     settings.x3ui_base_url,
                     settings.x3ui_username,
                     settings.x3ui_password,
+                    verify_tls=settings.x3ui_verify_tls,
                 ) as x3:
                     created = await x3.add_client(
                         inbound_id=settings.x3ui_inbound_id,

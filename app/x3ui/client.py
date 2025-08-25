@@ -19,11 +19,11 @@ class X3UICreateClientResult:
 
 
 class X3UIClient:
-    def __init__(self, base_url: str, username: Optional[str], password: Optional[str]):
+    def __init__(self, base_url: str, username: Optional[str], password: Optional[str], verify_tls: bool = True):
         self.base_url = base_url.rstrip("/")
         self.username = username
         self.password = password
-        self._client = httpx.AsyncClient(base_url=self.base_url, timeout=15)
+        self._client = httpx.AsyncClient(base_url=self.base_url, timeout=15, verify=verify_tls)
         self._log = logging.getLogger("x3ui")
         try:
             parsed = urlsplit(self.base_url)

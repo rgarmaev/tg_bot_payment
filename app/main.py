@@ -126,7 +126,7 @@ async def debug_x3ui_ping():
 
     # 3) Попытка логина и чтения inbound через X3UIClient
     try:
-        async with X3UIClient(settings.x3ui_base_url, settings.x3ui_username, settings.x3ui_password) as x3:
+        async with X3UIClient(settings.x3ui_base_url, settings.x3ui_username, settings.x3ui_password, verify_tls=settings.x3ui_verify_tls) as x3:
             try:
                 await x3.login()
                 result["probes"]["login_attempt"] = "done"
