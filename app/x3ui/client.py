@@ -214,7 +214,14 @@ class X3UIClient:
                     lower = body.lower()
                     if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
                         self._log.info("Success response detected")
+                        # Verify client was actually created
                         inbound = await self.get_inbound(inbound_id)
+                        if inbound:
+                            clients = inbound.get("clientStats", [])
+                            client_found = any(c.get("id") == client_uuid for c in clients)
+                            self._log.info("Client verification: found=%s, total_clients=%s", client_found, len(clients))
+                            if not client_found:
+                                self._log.warning("Client not found in inbound after creation attempt")
                         config_url = self.build_vless_url(inbound or {}, client_uuid, email_note)
                         self._log.info("Generated config_url: %s", config_url)
                         return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
@@ -225,7 +232,15 @@ class X3UIClient:
                 continue
 
         self._log.error("Failed to add client after trying all endpoints")
-        return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
+        # Even if client creation failed, try to generate config URL for manual creation
+        try:
+            inbound = await self.get_inbound(inbound_id)
+            config_url = self.build_vless_url(inbound or {}, client_uuid, email_note)
+            self._log.info("Generated config_url despite client creation failure: %s", config_url)
+            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
+        except Exception as e:
+            self._log.error("Failed to generate config URL: %s", e)
+            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
 
     async def get_inbound(self, inbound_id: int) -> Optional[dict]:
         await self.login()
