@@ -239,28 +239,28 @@ class X3UIClient:
 
     def build_vless_url(self, inbound: dict, client_uuid: str, note: str) -> Optional[str]:
         try:
-            print(f"DEBUG: build_vless_url called with inbound keys: {list(inbound.keys())}")
+            self._log.debug("build_vless_url called with inbound keys: %s", list(inbound.keys()))
             protocol = (inbound.get("protocol") or "vless").lower()
-            print(f"DEBUG: Protocol: {protocol}")
+            self._log.debug("Protocol: %s", protocol)
             if protocol != "vless":
-                print(f"DEBUG: Protocol is not vless, returning None")
+                self._log.debug("Protocol is not vless, returning None")
                 return None
             port = inbound.get("port")
-            print(f"DEBUG: Port: {port}")
+            self._log.debug("Port: %s", port)
             stream_raw = inbound.get("streamSettings", {})
-            print(f"DEBUG: StreamSettings raw: {stream_raw[:200] if isinstance(stream_raw, str) else stream_raw}")
+            self._log.debug("StreamSettings raw: %s", stream_raw[:200] if isinstance(stream_raw, str) else stream_raw)
             stream = stream_raw if isinstance(stream_raw, dict) else {}
             try:
                 if isinstance(stream_raw, str):
                     import json as _json
                     stream = _json.loads(stream_raw)
-                    print(f"DEBUG: Parsed stream: {stream}")
+                    self._log.debug("Parsed stream: %s", stream)
             except Exception as e:
-                print(f"DEBUG: Failed to parse streamSettings: {e}")
+                self._log.debug("Failed to parse streamSettings: %s", e)
                 stream = {}
             network = (stream.get("network") or "tcp").lower()
             security = (stream.get("security") or "none").lower()
-            print(f"DEBUG: Network: {network}, Security: {security}")
+            self._log.debug("Network: %s, Security: %s", network, security)
 
             host = None
             path = None
@@ -284,9 +284,9 @@ class X3UIClient:
                     parsed = urlparse(app_settings.public_base_url)
                     if parsed.hostname:
                         public_host = parsed.hostname
-                        print(f"DEBUG: Public host from PUBLIC_BASE_URL: {public_host}")
+                        self._log.debug("Public host from PUBLIC_BASE_URL: %s", public_host)
                 except Exception as e:
-                    print(f"DEBUG: Failed to parse PUBLIC_BASE_URL: {e}")
+                    self._log.debug("Failed to parse PUBLIC_BASE_URL: %s", e)
                     pass
             base_host = None
             try:
@@ -294,16 +294,16 @@ class X3UIClient:
                 parsed_base = _urlparse(self.base_url)
                 if parsed_base.hostname:
                     base_host = parsed_base.hostname
-                    print(f"DEBUG: Base host from X3UI_BASE_URL: {base_host}")
+                    self._log.debug("Base host from X3UI_BASE_URL: %s", base_host)
             except Exception as e:
-                print(f"DEBUG: Failed to parse X3UI_BASE_URL: {e}")
+                self._log.debug("Failed to parse X3UI_BASE_URL: %s", e)
                 base_host = None
 
             # Build query params
             params: dict[str, str] = {"encryption": "none"}
 
             if security == "reality":
-                print(f"DEBUG: Building Reality protocol params")
+                self._log.debug("Building Reality protocol params")
                 params["security"] = "reality"
                 reality = stream.get("realitySettings", {})
                 # Handle both dict and string formats
@@ -311,14 +311,14 @@ class X3UIClient:
                     try:
                         import json as _json
                         reality = _json.loads(reality)
-                        print(f"DEBUG: Parsed reality from string: {reality}")
+                        self._log.debug("Parsed reality from string: %s", reality)
                     except Exception as e:
-                        print(f"DEBUG: Failed to parse reality string: {e}")
+                        self._log.debug("Failed to parse reality string: %s", e)
                         reality = {}
                 reality_inner = reality.get("settings", {}) if isinstance(reality.get("settings"), dict) else {}
                 # public key
                 pbk = reality_inner.get("publicKey") or reality.get("publicKey")
-                print(f"DEBUG: Public key: {pbk}")
+                self._log.debug("Public key: %s", pbk)
                 # short id(s)
                 sid = None
                 if isinstance(reality.get("shortIds"), list) and reality.get("shortIds"):
@@ -327,14 +327,14 @@ class X3UIClient:
                     sid = reality.get("shortId")[0]
                 elif isinstance(reality.get("shortId"), str):
                     sid = reality.get("shortId")
-                print(f"DEBUG: Short ID: {sid}")
+                self._log.debug("Short ID: %s", sid)
                 # sni/serverName
                 sni_candidate = reality_inner.get("serverName") or sni
-                print(f"DEBUG: SNI candidate: {sni_candidate}")
+                self._log.debug("SNI candidate: %s", sni_candidate)
                 # spiderX and fingerprint
                 spx = reality_inner.get("spiderX") or reality.get("spiderX") or "/"
                 fp = reality_inner.get("fingerprint") or reality.get("fingerprint") or "chrome"
-                print(f"DEBUG: SpiderX: {spx}, Fingerprint: {fp}")
+                self._log.debug("SpiderX: %s, Fingerprint: %s", spx, fp)
                 if pbk:
                     params["pbk"] = pbk
                 if sid:
@@ -347,7 +347,7 @@ class X3UIClient:
                     params["spx"] = spx
                 # network type (tcp/ws)
                 params["type"] = network
-                print(f"DEBUG: Reality params: {params}")
+                self._log.debug("Reality params: %s", params)
             else:
                 if security and security != "none":
                     params["security"] = security
@@ -360,17 +360,18 @@ class X3UIClient:
 
             # Choose server host
             server = public_host or host or sni or base_host
-            print(f"DEBUG: Final server host: {server} (public_host={public_host}, host={host}, sni={sni}, base_host={base_host})")
+            self._log.debug("Final server host: %s (public_host=%s, host=%s, sni=%s, base_host=%s)", 
+                          server, public_host, host, sni, base_host)
             if not server or not port:
-                print(f"DEBUG: Missing server ({server}) or port ({port}), returning None")
+                self._log.debug("Missing server (%s) or port (%s), returning None", server, port)
                 return None
 
             from urllib.parse import urlencode, quote
             qs = urlencode(params)
             tag = quote(note)
             result = f"vless://{client_uuid}@{server}:{port}?{qs}#{tag}"
-            print(f"DEBUG: Generated VLESS URL: {result}")
+            self._log.debug("Generated VLESS URL: %s", result)
             return result
         except Exception as e:
-            print(f"DEBUG: Exception in build_vless_url: {e}")
+            self._log.debug("Exception in build_vless_url: %s", e)
             return None
