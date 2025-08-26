@@ -129,6 +129,10 @@ class X3UIClient:
                 "limitIp": 0,
                 "totalGB": total_gb_bytes or 0,
                 "expiryTime": expiry_ms,
+                # Some forks expect these optional fields present even if empty/zero
+                "flow": "",
+                "subId": "",
+                "reset": 0,
             },
         }
 
@@ -166,12 +170,51 @@ class X3UIClient:
             full_url = f"{self.base_url}{ep}"
             for pf_name, pf_payload in payloads:
                 try:
-                    headers = {"Accept": "application/json", "Content-Type": "application/json"}
                     self._log.info("Stage:add_client try %s with payload %s", full_url, pf_name)
                     self._log.info("Payload: %s", json.dumps(pf_payload, indent=2))
-                    resp = await self._client.post(full_url, json=pf_payload, headers=headers)
+                    # Try JSON first
+                    headers_json = {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                        "Referer": f"{self.base_url}/",
+                    }
+                    resp = await self._client.post(full_url, json=pf_payload, headers=headers_json)
                     body = resp.text
                     self._log.info("Stage:add_client resp %s -> %s %s", full_url, resp.status_code, body[:400])
+                    # If server complains about JSON parse, retry with raw JSON body
+                    if resp.status_code == 200 and body and "unexpected end of json input" in body.lower():
+                        try:
+                            raw = json.dumps(pf_payload)
+                            headers_raw = {
+                                "Accept": "application/json",
+                                "Content-Type": "application/json; charset=utf-8",
+                                "X-Requested-With": "XMLHttpRequest",
+                                "Referer": f"{self.base_url}/",
+                            }
+                            self._log.info("Stage:add_client retry(raw-json) %s", full_url)
+                            resp = await self._client.post(full_url, content=raw, headers=headers_raw)
+                            body = resp.text
+                            self._log.info("Stage:add_client resp(raw-json) %s -> %s %s", full_url, resp.status_code, body[:400])
+                        except Exception as e:
+                            self._log.debug("Stage:add_client raw-json retry failed: %s", e)
+                    # If still not ok, try form-encoded as a last resort
+                    if resp.status_code == 200 and (not body or body.strip() == ""):
+                        try:
+                            from urllib.parse import urlencode as _urlencode
+                            form = _urlencode({"json": json.dumps(pf_payload)})
+                            headers_form = {
+                                "Accept": "application/json",
+                                "Content-Type": "application/x-www-form-urlencoded",
+                                "X-Requested-With": "XMLHttpRequest",
+                                "Referer": f"{self.base_url}/",
+                            }
+                            self._log.info("Stage:add_client retry(form) %s", full_url)
+                            resp = await self._client.post(full_url, content=form, headers=headers_form)
+                            body = resp.text
+                            self._log.info("Stage:add_client resp(form) %s -> %s %s", full_url, resp.status_code, body[:400])
+                        except Exception as e:
+                            self._log.debug("Stage:add_client form retry failed: %s", e)
                     if resp.status_code == 200:
                         # Parse success and extract link
                         config_url: Optional[str] = None
