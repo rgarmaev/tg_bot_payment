@@ -73,87 +73,98 @@ async def _resolve_subscription_link(url: Optional[str]) -> Optional[str]:
         return None
     try:
         from .config import settings as app_settings
-        log = logging.getLogger("x3ui")
         async with httpx.AsyncClient(timeout=10, follow_redirects=True, verify=app_settings.x3ui_verify_tls) as client:
-            for attempt in range(5):
-                resp = await client.get(url)
-                ctype = resp.headers.get("content-type", "").lower()
-                preview = None
-                try:
-                    preview = (resp.text or "").strip()[:160]
-                except Exception:
-                    preview = "<binary>"
-                log.info("Stage:sub_resolve attempt=%s url=%s -> %s ctype=%s preview=%s", attempt + 1, url, resp.status_code, ctype, preview)
-                if resp.status_code != 200:
-                    await asyncio.sleep(0.5)
-                    continue
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                return None
+            ctype = resp.headers.get("content-type", "").lower()
+            text = None
+            try:
+                text = resp.text.strip()
+            except Exception:
                 text = None
-                try:
-                    text = resp.text.strip()
-                except Exception:
-                    text = None
-                # Try to find direct link in plain text
+            # Try to find direct link in plain text
+            if text:
+                m = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", text)
+                if m:
+                    return m.group(1)
+            # Try base64 decode then search
+            try:
                 if text:
-                    m = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", text)
-                    if m:
-                        return m.group(1)
-                # Try base64 decode then search
+                    decoded = base64.b64decode(text + "==").decode("utf-8", errors="ignore")
+                    m2 = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", decoded)
+                    if m2:
+                        return m2.group(1)
+            except Exception:
+                pass
+            # Extract data URI QR from HTML
+            if text:
                 try:
-                    if text:
-                        decoded = base64.b64decode(text + "==").decode("utf-8", errors="ignore")
-                        m2 = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", decoded)
-                        if m2:
-                            return m2.group(1)
+                    mimg = re.search(r"data:image/png;base64,([A-Za-z0-9+/=]+)", text)
+                    if mimg:
+                        raw = base64.b64decode(mimg.group(1))
+                        try:
+                            from PIL import Image  # type: ignore
+                            from io import BytesIO
+                            try:
+                                from pyzbar.pyzbar import decode as qr_decode  # type: ignore
+                            except Exception:
+                                qr_decode = None
+                            if qr_decode is not None:
+                                img = Image.open(BytesIO(raw))
+                                dec = qr_decode(img)
+                                for d in dec:
+                                    data = d.data.decode("utf-8", errors="ignore")
+                                    if data.startswith(("vless://", "vmess://", "trojan://")):
+                                        return data
+                        except Exception:
+                            pass
                 except Exception:
                     pass
-                # Extract data URI QR from HTML
-                if text:
+            # If response is PNG image, try QR decode
+            if "image/png" in ctype:
+                try:
+                    raw = resp.content
+                    from PIL import Image  # type: ignore
+                    from io import BytesIO
                     try:
-                        mimg = re.search(r"data:image/png;base64,([A-Za-z0-9+/=]+)", text)
-                        if mimg:
-                            raw = base64.b64decode(mimg.group(1))
-                            try:
-                                from PIL import Image  # type: ignore
-                                from io import BytesIO
-                                try:
-                                    from pyzbar.pyzbar import decode as qr_decode  # type: ignore
-                                except Exception:
-                                    qr_decode = None
-                                if qr_decode is not None:
-                                    img = Image.open(BytesIO(raw))
-                                    dec = qr_decode(img)
-                                    for d in dec:
-                                        data = d.data.decode("utf-8", errors="ignore")
-                                        if data.startswith(("vless://", "vmess://", "trojan://")):
-                                            return data
-                            except Exception:
-                                pass
+                        from pyzbar.pyzbar import decode as qr_decode  # type: ignore
                     except Exception:
-                        pass
-                # If response is PNG image, try QR decode
-                if "image/png" in ctype:
-                    try:
-                        raw = resp.content
-                        from PIL import Image  # type: ignore
-                        from io import BytesIO
-                        try:
-                            from pyzbar.pyzbar import decode as qr_decode  # type: ignore
-                        except Exception:
-                            qr_decode = None
-                        if qr_decode is not None:
-                            img = Image.open(BytesIO(raw))
-                            dec = qr_decode(img)
-                            for d in dec:
-                                data = d.data.decode("utf-8", errors="ignore")
-                                if data.startswith(("vless://", "vmess://", "trojan://")):
-                                    return data
-                    except Exception:
-                        pass
-                # If nothing extracted, wait a bit and retry (e.g., body == 'requesting')
-                await asyncio.sleep(0.6)
+                        qr_decode = None
+                    if qr_decode is not None:
+                        img = Image.open(BytesIO(raw))
+                        dec = qr_decode(img)
+                        for d in dec:
+                            data = d.data.decode("utf-8", errors="ignore")
+                            if data.startswith(("vless://", "vmess://", "trojan://")):
+                                return data
+                except Exception:
+                    pass
     except Exception:
         pass
     return None
+
+
+def _trim_config_url(url: Optional[str]) -> Optional[str]:
+    """Trim the URL's fragment after the first '-<number>GB' occurrence in the tag.
+
+    Example: '#iphone-...-100.00GB📊-30D⏳' -> '#iphone-...'
+    """
+    if not url or ("#" not in url):
+        return url
+    try:
+        head, frag = url.split("#", 1)
+        # Find '-<number>[.<number>]GB' and cut from there (inclusive preceding hyphen)
+        m = re.search(r"-\d+(?:\.\d+)?GB", frag, flags=re.IGNORECASE)
+        if m:
+            cut_pos = m.start()
+            # Remove the preceding hyphen segment
+            frag = frag[:cut_pos]
+            # Also strip any trailing emoji/spaces
+            frag = frag.rstrip(" -_\u2600-\u26FF\U0001F300-\U0001FAFF")
+        return f"{head}#{frag}" if frag else head
+    except Exception:
+        return url
 
 
 async def ensure_user(session: AsyncSession, tg_user_id: int) -> User:
@@ -242,6 +253,7 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                         sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{sub_token}"
                     # If server didn't return link but sub_url is available, try resolving it
                     final_url = created.config_url or await _resolve_subscription_link(sub_url)
+                    final_url = _trim_config_url(final_url)
                     # Сохраним подписку
                     result_user = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
                     user = result_user.scalar_one()
@@ -612,6 +624,7 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         sub_token = created.note or f"tg_{message.from_user.id}"
         sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{sub_token}"
     final_url = created.config_url or await _resolve_subscription_link(sub_url)
+    final_url = _trim_config_url(final_url)
 
     result_user = await session.execute(
         select(User).where(User.tg_user_id == message.from_user.id)
@@ -765,6 +778,7 @@ async def _auto_check_and_activate(bot: types.Bot, tg_user_id: int, order_id: in
                         sub_token = created.note or f"tg_{tg_user_id}"
                         sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{sub_token}"
                     final_url = created.config_url or await _resolve_subscription_link(sub_url)
+                    final_url = _trim_config_url(final_url)
                     sub = Subscription(
                         user_id=user.id,
                         inbound_id=settings.x3ui_inbound_id,
