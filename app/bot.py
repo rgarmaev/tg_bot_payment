@@ -108,6 +108,21 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                         settings.x3ui_username,
                         settings.x3ui_password,
                     ) as x3:
+                        # Idempotency guard: skip if recent subscription exists (10 min)
+                        recent_since = datetime.utcnow() - timedelta(minutes=10)
+                        existing_sub = await session.execute(
+                            select(Subscription)
+                            .join(User)
+                            .where(
+                                User.tg_user_id == message.from_user.id,
+                                Subscription.created_at >= recent_since,
+                                Subscription.is_active == True,
+                            )
+                            .order_by(Subscription.id.desc())
+                        )
+                        if existing_sub.scalars().first():
+                            await message.answer("Подписка уже активирована недавно. Проверьте /my.")
+                            return
                         created = await x3.add_client(
                             inbound_id=settings.x3ui_inbound_id,
                             days=plan_days,
@@ -463,6 +478,21 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         settings.x3ui_username,
         settings.x3ui_password,
     ) as x3:
+        # Idempotency guard: skip if recent subscription exists (10 min)
+        recent_since = datetime.utcnow() - timedelta(minutes=10)
+        existing_sub = await session.execute(
+            select(Subscription)
+            .join(User)
+            .where(
+                User.tg_user_id == message.from_user.id,
+                Subscription.created_at >= recent_since,
+                Subscription.is_active == True,
+            )
+            .order_by(Subscription.id.desc())
+        )
+        if existing_sub.scalars().first():
+            await message.answer("Подписка уже активирована недавно. Проверьте /my.")
+            return
         created = await x3.add_client(
             inbound_id=settings.x3ui_inbound_id,
             days=plan_days,
@@ -598,6 +628,20 @@ async def _auto_check_and_activate(bot: types.Bot, tg_user_id: int, order_id: in
                     settings.x3ui_username,
                     settings.x3ui_password,
                 ) as x3:
+                    # Idempotency guard: skip if recent subscription exists (10 min)
+                    recent_since = datetime.utcnow() - timedelta(minutes=10)
+                    existing_sub = await s.execute(
+                        select(Subscription)
+                        .join(User)
+                        .where(
+                            User.tg_user_id == tg_user_id,
+                            Subscription.created_at >= recent_since,
+                            Subscription.is_active == True,
+                        )
+                        .order_by(Subscription.id.desc())
+                    )
+                    if existing_sub.scalars().first():
+                        return
                     created = await x3.add_client(
                         inbound_id=settings.x3ui_inbound_id,
                         days=plan_days,
