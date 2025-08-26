@@ -79,16 +79,16 @@ class X3UIClient:
         # Requests to try per endpoint
         requests: list[tuple[str, dict, dict]] = []  # (method, params_or_json, headers)
         # GET with query params
-        requests.append(("GET", {"inboundId": inbound_id, "email": email_note, "id": inbound_id, "uuid": client_uuid}, {}))
+        requests.append(("GET", {"inboundId": inbound_id, "email": email_note, "id": inbound_id, "uuid": client_uuid, "remark": email_note, "subId": email_note}, {}))
         # POST json
-        requests.append(("POST_JSON", {"inboundId": inbound_id, "email": email_note, "id": inbound_id, "uuid": client_uuid}, {
+        requests.append(("POST_JSON", {"inboundId": inbound_id, "email": email_note, "id": inbound_id, "uuid": client_uuid, "remark": email_note, "subId": email_note}, {
             "Accept": "application/json",
             "Content-Type": "application/json",
             "X-Requested-With": "XMLHttpRequest",
             "Referer": f"{self.base_url}/",
         }))
         # POST form
-        requests.append(("POST_FORM", {"inboundId": str(inbound_id), "email": email_note, "id": str(inbound_id), "uuid": client_uuid}, {
+        requests.append(("POST_FORM", {"inboundId": str(inbound_id), "email": email_note, "id": str(inbound_id), "uuid": client_uuid, "remark": email_note, "subId": email_note}, {
             "Accept": "application/json",
             "Content-Type": "application/x-www-form-urlencoded",
             "X-Requested-With": "XMLHttpRequest",
@@ -239,7 +239,7 @@ class X3UIClient:
                 "expiryTime": expiry_ms,
                 # Some forks expect these optional fields present even if empty/zero
                 "flow": "",
-                "subId": "",
+                "subId": email_note,
                 "reset": 0,
             },
         }
@@ -267,6 +267,7 @@ class X3UIClient:
                                 "limitIp": 0,
                                 "totalGB": total_gb_bytes or 0,
                                 "expiryTime": expiry_ms,
+                                "subId": email_note,
                             }
                         ]
                     },
@@ -287,6 +288,7 @@ class X3UIClient:
                                     "limitIp": 0,
                                     "totalGB": total_gb_bytes or 0,
                                     "expiryTime": expiry_ms,
+                                    "subId": email_note,
                                 }
                             ]
                         }
