@@ -372,14 +372,17 @@ async def cb_open_subs(callback: types.CallbackQuery, session: AsyncSession):
     else:
         lines = ["Ваши подписки:"]
         for s in subs:
-            line = f"#{s.id} UUID={s.xray_uuid} active={s.is_active}"
+            hdr = f"#{s.id} UUID={s.xray_uuid} active={s.is_active}"
+            from html import escape as _esc
+            line = f"<code>{_esc(hdr)}</code>"
             if s.config_url:
-                line += f"\n{s.config_url}"
+                safe = sanitize_config_link(s.config_url)
+                line += f"\n{_esc(safe or '')}"
             lines.append(line)
         kb = InlineKeyboardBuilder()
         kb.button(text="⬅️ Назад", callback_data="menu:home")
         kb.adjust(1)
-        await callback.message.edit_text("\n".join(lines), reply_markup=kb.as_markup())
+        await callback.message.edit_text("\n".join(lines), reply_markup=kb.as_markup(), parse_mode="HTML")
     await callback.answer()
 
 
@@ -656,11 +659,14 @@ async def cmd_my(message: types.Message, session: AsyncSession):
         return
     lines = ["Ваши подписки:"]
     for s in subs:
-        line = f"#{s.id} UUID={s.xray_uuid} active={s.is_active}"
+        hdr = f"#{s.id} UUID={s.xray_uuid} active={s.is_active}"
+        from html import escape as _esc
+        line = f"<code>{_esc(hdr)}</code>"
         if s.config_url:
-            line += f"\n{s.config_url}"
+            safe = sanitize_config_link(s.config_url)
+            line += f"\n{_esc(safe or '')}"
         lines.append(line)
-    await message.answer("\n".join(lines))
+    await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 async def _try_refresh_order_status(order_id: int) -> Optional[str]:
