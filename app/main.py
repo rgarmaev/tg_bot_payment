@@ -11,6 +11,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.types import Update
 
 from .config import settings
+import logging
 from .db import init_db, async_session
 from .bot import router as bot_router
 from .payment.yookassa_pay import register_routes as register_yookassa_routes
@@ -32,6 +33,18 @@ class SessionMiddleware(BaseMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global bot, dispatcher
+    # Setup logging once
+    try:
+        level = getattr(logging, (settings.log_level or "INFO").upper(), logging.INFO)
+    except Exception:
+        level = logging.INFO
+    logging.basicConfig(level=level, format="%(levelname)s:%(name)s:%(message)s")
+    # x3ui logger level
+    try:
+        x3_level = getattr(logging, (settings.x3ui_log_level or "DEBUG").upper(), logging.DEBUG)
+        logging.getLogger("x3ui").setLevel(x3_level)
+    except Exception:
+        pass
     await init_db()
 
     polling_task = None

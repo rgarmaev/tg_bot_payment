@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     admin_user_id: int | None = None
     telegram_proxy_url: str | None = None  # e.g. "socks5h://user:pass@host:port" or "http://host:port"
 
+    # Logging
+    log_level: str = "INFO"           # root/app log level
+    x3ui_log_level: str = "DEBUG"     # logger "x3ui" level
+
     # Payment provider switch
     payment_provider: str = "yookassa"  # yookassa
 
