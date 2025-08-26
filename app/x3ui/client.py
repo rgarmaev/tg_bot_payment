@@ -147,6 +147,16 @@ class X3UIClient:
                     self._log.info("Stage:get_client_link resp %s -> %s %s", full_url, resp.status_code, (body_text or "")[:400])
                     if resp.status_code == 200:
                         link = _extract_link_from_body(body_text)
+                        # If JSON-based extraction failed, try regex over raw HTML/text
+                        if not link and isinstance(body_text, str):
+                            import re as _re
+                            m = _re.search(r"(vless://[^\s\"'<]+)", body_text)
+                            if not m:
+                                m = _re.search(r"(vmess://[^\s\"'<]+)", body_text)
+                            if not m:
+                                m = _re.search(r"(trojan://[^\s\"'<]+)", body_text)
+                            if m:
+                                link = m.group(1)
                         if link:
                             self._log.info("Stage:get_client_link success using %s; link: %s", full_url, link)
                             return link
