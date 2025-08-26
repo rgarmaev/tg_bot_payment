@@ -147,7 +147,7 @@ class X3UIClient:
         payloads = [
             ("v1", payload),
             (
-                "v2",
+                "v2_obj",
                 {
                     "id": inbound_id,
                     "settings": {
@@ -162,6 +162,27 @@ class X3UIClient:
                             }
                         ]
                     },
+                },
+            ),
+            (
+                "v2_str",
+                {
+                    "id": inbound_id,
+                    # Some panels require settings to be a JSON-encoded string
+                    "settings": json.dumps(
+                        {
+                            "clients": [
+                                {
+                                    "id": client_uuid,
+                                    "email": email_note,
+                                    "enable": True,
+                                    "limitIp": 0,
+                                    "totalGB": total_gb_bytes or 0,
+                                    "expiryTime": expiry_ms,
+                                }
+                            ]
+                        }
+                    ),
                 },
             ),
         ]
@@ -202,7 +223,11 @@ class X3UIClient:
                     if resp.status_code == 200 and (not body or body.strip() == ""):
                         try:
                             from urllib.parse import urlencode as _urlencode
-                            form = _urlencode({"json": json.dumps(pf_payload)})
+                            # For v2_str, send id/settings fields directly; for others, wrap in json field
+                            if pf_name == "v2_str" and isinstance(pf_payload, dict) and "id" in pf_payload and "settings" in pf_payload:
+                                form = _urlencode({"id": str(pf_payload["id"]), "settings": pf_payload["settings"]})
+                            else:
+                                form = _urlencode({"json": json.dumps(pf_payload)})
                             headers_form = {
                                 "Accept": "application/json",
                                 "Content-Type": "application/x-www-form-urlencoded",
