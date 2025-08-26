@@ -58,6 +58,104 @@ class X3UIClient:
                 uniq.append(p)
         return uniq
 
+    async def _fetch_config_url(self, inbound_id: int, email_note: str, client_uuid: str) -> Optional[str]:
+        """Try multiple known endpoints that some 3x-ui forks expose to get a client's share link.
+
+        We do NOT build the link locally here. We only accept what the server returns.
+        """
+        self._log.info("Stage:get_client_link start inbound_id=%s email=%s", inbound_id, email_note)
+        subpaths = [
+            # Common API-style endpoints
+            f"panel/api/inbounds/getClient",
+            f"api/inbounds/getClient",
+            f"panel/inbound/getClient",
+            f"xui/inbound/getClient",
+            # Some forks expose 'share' endpoints
+            f"panel/api/inbounds/clientShare",
+            f"api/inbounds/clientShare",
+            f"panel/inbound/clientShare",
+        ]
+        endpoints = self._candidates(subpaths)
+        # Requests to try per endpoint
+        requests: list[tuple[str, dict, dict]] = []  # (method, params_or_json, headers)
+        # GET with query params
+        requests.append(("GET", {"inboundId": inbound_id, "email": email_note, "id": inbound_id, "uuid": client_uuid}, {}))
+        # POST json
+        requests.append(("POST_JSON", {"inboundId": inbound_id, "email": email_note, "id": inbound_id, "uuid": client_uuid}, {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{self.base_url}/",
+        }))
+        # POST form
+        requests.append(("POST_FORM", {"inboundId": str(inbound_id), "email": email_note, "id": str(inbound_id), "uuid": client_uuid}, {
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{self.base_url}/",
+        }))
+
+        def _extract_link_from_body(text: str) -> Optional[str]:
+            try:
+                data = json.loads(text)
+            except Exception:
+                data = None
+            candidates: list[str] = []
+            if isinstance(data, dict):
+                # flat keys
+                for key in ["link", "url", "config", "configUrl", "vless", "vmess", "trojan"]:
+                    val = data.get(key)
+                    if isinstance(val, str):
+                        candidates.append(val)
+                # nested containers
+                for container_key in ["obj", "data", "result", "client"]:
+                    container = data.get(container_key)
+                    if isinstance(container, dict):
+                        for key in ["link", "url", "config", "configUrl", "vless", "vmess", "trojan"]:
+                            val = container.get(key)
+                            if isinstance(val, str):
+                                candidates.append(val)
+                    if isinstance(container, list):
+                        for it in container:
+                            if isinstance(it, dict):
+                                for key in ["link", "url", "config", "configUrl", "vless", "vmess", "trojan"]:
+                                    val = it.get(key)
+                                    if isinstance(val, str):
+                                        candidates.append(val)
+            # also accept raw text bodies already containing protocol
+            for c in candidates + ([text] if isinstance(text, str) else []):
+                if isinstance(c, str) and (c.startswith("vless://") or c.startswith("vmess://") or c.startswith("trojan://")):
+                    return c
+            return None
+
+        for ep in endpoints:
+            full_url = f"{self.base_url}{ep}"
+            for method, payload, headers in requests:
+                try:
+                    if method == "GET":
+                        self._log.info("Stage:get_client_link GET %s", full_url)
+                        resp = await self._client.get(full_url, params=payload)
+                    elif method == "POST_JSON":
+                        self._log.info("Stage:get_client_link POST json %s", full_url)
+                        resp = await self._client.post(full_url, json=payload, headers=headers)
+                    else:
+                        from urllib.parse import urlencode as _urlencode
+                        body = _urlencode(payload)
+                        self._log.info("Stage:get_client_link POST form %s", full_url)
+                        resp = await self._client.post(full_url, content=body, headers=headers)
+                    body_text = resp.text
+                    self._log.info("Stage:get_client_link resp %s -> %s %s", full_url, resp.status_code, (body_text or "")[:400])
+                    if resp.status_code == 200:
+                        link = _extract_link_from_body(body_text)
+                        if link:
+                            self._log.info("Stage:get_client_link success using %s; link: %s", full_url, link)
+                            return link
+                except Exception as e:
+                    self._log.debug("Stage:get_client_link error on %s: %s", full_url, e)
+                    continue
+        self._log.info("Stage:get_client_link no link obtained")
+        return None
+
     async def login(self) -> None:
         if not (self.username and self.password):
             return
@@ -285,6 +383,12 @@ class X3UIClient:
                             pass
 
                         if is_success:
+                            if not config_url:
+                                # Try to fetch server-generated share link via follow-up endpoints
+                                try:
+                                    config_url = await self._fetch_config_url(inbound_id, email_note, client_uuid)
+                                except Exception:
+                                    config_url = None
                             if config_url:
                                 self._log.info("Stage:add_client success using %s; config URL: %s", full_url, config_url)
                             else:
