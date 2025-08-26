@@ -4,14 +4,14 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 from yookassa import Configuration, Payment
 
-from .config import settings
-from .db import async_session
-from .models import Order, OrderStatus, User, Subscription
-from .x3ui.client import X3UIClient
+from ..config import settings
+from ..db import async_session
+from ..models import Order, OrderStatus, User, Subscription
+from ..x3ui.client import X3UIClient
 from sqlalchemy import select
 from datetime import datetime, timedelta
 from urllib.parse import urlsplit, urlunsplit
-from .utils import sanitize_config_link
+from ..utils import sanitize_config_link
 
 
 def _ensure_config():
