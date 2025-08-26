@@ -73,73 +73,84 @@ async def _resolve_subscription_link(url: Optional[str]) -> Optional[str]:
         return None
     try:
         from .config import settings as app_settings
+        log = logging.getLogger("x3ui")
         async with httpx.AsyncClient(timeout=10, follow_redirects=True, verify=app_settings.x3ui_verify_tls) as client:
-            resp = await client.get(url)
-            if resp.status_code != 200:
-                return None
-            ctype = resp.headers.get("content-type", "").lower()
-            text = None
-            try:
-                text = resp.text.strip()
-            except Exception:
+            for attempt in range(5):
+                resp = await client.get(url)
+                ctype = resp.headers.get("content-type", "").lower()
+                preview = None
+                try:
+                    preview = (resp.text or "").strip()[:160]
+                except Exception:
+                    preview = "<binary>"
+                log.info("Stage:sub_resolve attempt=%s url=%s -> %s ctype=%s preview=%s", attempt + 1, url, resp.status_code, ctype, preview)
+                if resp.status_code != 200:
+                    await asyncio.sleep(0.5)
+                    continue
                 text = None
-            # Try to find direct link in plain text
-            if text:
-                m = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", text)
-                if m:
-                    return m.group(1)
-            # Try base64 decode then search
-            try:
+                try:
+                    text = resp.text.strip()
+                except Exception:
+                    text = None
+                # Try to find direct link in plain text
                 if text:
-                    decoded = base64.b64decode(text + "==").decode("utf-8", errors="ignore")
-                    m2 = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", decoded)
-                    if m2:
-                        return m2.group(1)
-            except Exception:
-                pass
-            # Extract data URI QR from HTML
-            if text:
+                    m = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", text)
+                    if m:
+                        return m.group(1)
+                # Try base64 decode then search
                 try:
-                    mimg = re.search(r"data:image/png;base64,([A-Za-z0-9+/=]+)", text)
-                    if mimg:
-                        raw = base64.b64decode(mimg.group(1))
-                        try:
-                            from PIL import Image  # type: ignore
-                            from io import BytesIO
-                            try:
-                                from pyzbar.pyzbar import decode as qr_decode  # type: ignore
-                            except Exception:
-                                qr_decode = None
-                            if qr_decode is not None:
-                                img = Image.open(BytesIO(raw))
-                                dec = qr_decode(img)
-                                for d in dec:
-                                    data = d.data.decode("utf-8", errors="ignore")
-                                    if data.startswith(("vless://", "vmess://", "trojan://")):
-                                        return data
-                        except Exception:
-                            pass
+                    if text:
+                        decoded = base64.b64decode(text + "==").decode("utf-8", errors="ignore")
+                        m2 = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", decoded)
+                        if m2:
+                            return m2.group(1)
                 except Exception:
                     pass
-            # If response is PNG image, try QR decode
-            if "image/png" in ctype:
-                try:
-                    raw = resp.content
-                    from PIL import Image  # type: ignore
-                    from io import BytesIO
+                # Extract data URI QR from HTML
+                if text:
                     try:
-                        from pyzbar.pyzbar import decode as qr_decode  # type: ignore
+                        mimg = re.search(r"data:image/png;base64,([A-Za-z0-9+/=]+)", text)
+                        if mimg:
+                            raw = base64.b64decode(mimg.group(1))
+                            try:
+                                from PIL import Image  # type: ignore
+                                from io import BytesIO
+                                try:
+                                    from pyzbar.pyzbar import decode as qr_decode  # type: ignore
+                                except Exception:
+                                    qr_decode = None
+                                if qr_decode is not None:
+                                    img = Image.open(BytesIO(raw))
+                                    dec = qr_decode(img)
+                                    for d in dec:
+                                        data = d.data.decode("utf-8", errors="ignore")
+                                        if data.startswith(("vless://", "vmess://", "trojan://")):
+                                            return data
+                            except Exception:
+                                pass
                     except Exception:
-                        qr_decode = None
-                    if qr_decode is not None:
-                        img = Image.open(BytesIO(raw))
-                        dec = qr_decode(img)
-                        for d in dec:
-                            data = d.data.decode("utf-8", errors="ignore")
-                            if data.startswith(("vless://", "vmess://", "trojan://")):
-                                return data
-                except Exception:
-                    pass
+                        pass
+                # If response is PNG image, try QR decode
+                if "image/png" in ctype:
+                    try:
+                        raw = resp.content
+                        from PIL import Image  # type: ignore
+                        from io import BytesIO
+                        try:
+                            from pyzbar.pyzbar import decode as qr_decode  # type: ignore
+                        except Exception:
+                            qr_decode = None
+                        if qr_decode is not None:
+                            img = Image.open(BytesIO(raw))
+                            dec = qr_decode(img)
+                            for d in dec:
+                                data = d.data.decode("utf-8", errors="ignore")
+                                if data.startswith(("vless://", "vmess://", "trojan://")):
+                                    return data
+                    except Exception:
+                        pass
+                # If nothing extracted, wait a bit and retry (e.g., body == 'requesting')
+                await asyncio.sleep(0.6)
     except Exception:
         pass
     return None
