@@ -125,21 +125,81 @@ class X3UIClient:
             self._log.info("Response headers: %s", dict(resp.headers))
             
             if resp.status_code == 200:
-                # Check if response indicates success
-                if not body or not body.strip():
-                    self._log.info("Empty response body, treating as success")
-                    inbound = await self.get_inbound(inbound_id)
-                    config_url = self.build_vless_url(inbound or {}, client_uuid, email_note)
-                    self._log.info("Generated config_url: %s", config_url)
+                # Check if response indicates success and try to extract config URL from the response
+                config_url: Optional[str] = None
+                try:
+                    data = resp.json()
+                    self._log.debug("Parsed JSON response: %s", data)
+                    # 3x-ui variants may return data in different shapes
+                    # Try common fields first
+                    candidates = []
+                    if isinstance(data, dict):
+                        # direct fields
+                        for key in [
+                            "link",
+                            "url",
+                            "config",
+                            "configUrl",
+                            "vless",
+                            "vmess",
+                            "trojan",
+                        ]:
+                            val = data.get(key)
+                            if isinstance(val, str):
+                                candidates.append(val)
+                        # nested under obj or data
+                        for container_key in ["obj", "data", "result", "client"]:
+                            container = data.get(container_key)
+                            if isinstance(container, dict):
+                                for key in [
+                                    "link",
+                                    "url",
+                                    "config",
+                                    "configUrl",
+                                    "vless",
+                                    "vmess",
+                                    "trojan",
+                                ]:
+                                    val = container.get(key)
+                                    if isinstance(val, str):
+                                        candidates.append(val)
+                            if isinstance(container, list):
+                                for it in container:
+                                    if isinstance(it, dict):
+                                        for key in [
+                                            "link",
+                                            "url",
+                                            "config",
+                                            "configUrl",
+                                            "vless",
+                                            "vmess",
+                                            "trojan",
+                                        ]:
+                                            val = it.get(key)
+                                            if isinstance(val, str):
+                                                candidates.append(val)
+                    # choose first URL-looking candidate
+                    for c in candidates:
+                        if isinstance(c, str) and (c.startswith("vless://") or c.startswith("vmess://") or c.startswith("trojan://")):
+                            config_url = c
+                            break
+                except Exception:
+                    # not JSON or unexpected shape
+                    pass
+
+                if config_url:
+                    self._log.info("Using config URL from server response: %s", config_url)
                     return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
-                
+
+                # If body is empty but HTTP 200, treat as success but do NOT generate link locally
+                if not body or not body.strip():
+                    self._log.info("Empty response body, treating as success without local link generation")
+                    return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
+
                 lower = body.lower()
                 if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
-                    self._log.info("Success response detected")
-                    inbound = await self.get_inbound(inbound_id)
-                    config_url = self.build_vless_url(inbound or {}, client_uuid, email_note)
-                    self._log.info("Generated config_url: %s", config_url)
-                    return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
+                    self._log.info("Success response detected but no config URL provided by server")
+                    return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
                 else:
                     self._log.warning("Response indicates failure: %s", body)
             else:
@@ -184,13 +244,70 @@ class X3UIClient:
                     self._log.info("x3-ui addClient %s -> %s %s", endpoint, resp.status_code, body[:400])
                     
                     if resp.status_code == 200:
+                        # Try to extract config URL from fallback responses as well
+                        config_url: Optional[str] = None
+                        try:
+                            data = resp.json()
+                            self._log.debug("Parsed JSON response (fallback): %s", data)
+                            candidates = []
+                            if isinstance(data, dict):
+                                for key in [
+                                    "link",
+                                    "url",
+                                    "config",
+                                    "configUrl",
+                                    "vless",
+                                    "vmess",
+                                    "trojan",
+                                ]:
+                                    val = data.get(key)
+                                    if isinstance(val, str):
+                                        candidates.append(val)
+                                for container_key in ["obj", "data", "result", "client"]:
+                                    container = data.get(container_key)
+                                    if isinstance(container, dict):
+                                        for key in [
+                                            "link",
+                                            "url",
+                                            "config",
+                                            "configUrl",
+                                            "vless",
+                                            "vmess",
+                                            "trojan",
+                                        ]:
+                                            val = container.get(key)
+                                            if isinstance(val, str):
+                                                candidates.append(val)
+                                    if isinstance(container, list):
+                                        for it in container:
+                                            if isinstance(it, dict):
+                                                for key in [
+                                                    "link",
+                                                    "url",
+                                                    "config",
+                                                    "configUrl",
+                                                    "vless",
+                                                    "vmess",
+                                                    "trojan",
+                                                ]:
+                                                    val = it.get(key)
+                                                    if isinstance(val, str):
+                                                        candidates.append(val)
+                            for c in candidates:
+                                if isinstance(c, str) and (c.startswith("vless://") or c.startswith("vmess://") or c.startswith("trojan://")):
+                                    config_url = c
+                                    break
+                        except Exception:
+                            pass
+
+                        if config_url:
+                            self._log.info("Using config URL from server response (fallback): %s", config_url)
+                            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
+
                         lower = body.lower()
                         if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
-                            self._log.info("Success response detected")
-                            inbound = await self.get_inbound(inbound_id)
-                            config_url = self.build_vless_url(inbound or {}, client_uuid, email_note)
-                            self._log.info("Generated config_url: %s", config_url)
-                            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
+                            self._log.info("Success response detected but no config URL provided by server (fallback)")
+                            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
                         else:
                             self._log.warning("Response indicates failure: %s", body)
                     else:
@@ -200,15 +317,8 @@ class X3UIClient:
                     continue
 
         self._log.error("Failed to add client after trying all endpoints")
-        # Even if client creation failed, try to generate config URL for manual creation
-        try:
-            inbound = await self.get_inbound(inbound_id)
-            config_url = self.build_vless_url(inbound or {}, client_uuid, email_note)
-            self._log.info("Generated config_url despite client creation failure: %s", config_url)
-            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
-        except Exception as e:
-            self._log.error("Failed to generate config URL: %s", e)
-            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
+        # Do not generate the link locally; return without config URL
+        return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
 
     async def get_inbound(self, inbound_id: int) -> Optional[dict]:
         await self.login()

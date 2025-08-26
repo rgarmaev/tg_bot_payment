@@ -42,6 +42,11 @@ async def lifespan(app: FastAPI):
         dispatcher.include_router(bot_router)
         # expose bot for routes
         app.state.bot = bot
+        # Ensure no webhook is set before starting long polling
+        try:
+            await bot.delete_webhook(drop_pending_updates=True)
+        except Exception:
+            pass
         polling_task = asyncio.create_task(dispatcher.start_polling(bot))
     try:
         yield
