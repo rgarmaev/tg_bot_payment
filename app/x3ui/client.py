@@ -143,10 +143,15 @@ class X3UIClient:
                         body = _urlencode(payload)
                         self._log.info("Stage:get_client_link POST form %s", full_url)
                         resp = await self._client.post(full_url, content=body, headers=headers)
-                    body_text = resp.text
-                    self._log.info("Stage:get_client_link resp %s -> %s %s", full_url, resp.status_code, (body_text or "")[:400])
+                    ctype = resp.headers.get("content-type", "").lower()
+                    body_text = None
+                    try:
+                        body_text = resp.text
+                    except Exception:
+                        body_text = None
+                    self._log.info("Stage:get_client_link resp %s -> %s %s", full_url, resp.status_code, (body_text or "<binary>")[:400])
                     if resp.status_code == 200:
-                        link = _extract_link_from_body(body_text)
+                        link = _extract_link_from_body(body_text or "")
                         # If JSON-based extraction failed, try regex over raw HTML/text
                         if not link and isinstance(body_text, str):
                             import re as _re
@@ -157,6 +162,53 @@ class X3UIClient:
                                 m = _re.search(r"(trojan://[^\s\"'<]+)", body_text)
                             if m:
                                 link = m.group(1)
+                            # Extract data URI PNG and try QR decode
+                            if not link:
+                                mimg = _re.search(r"data:image/png;base64,([A-Za-z0-9+/=]+)", body_text)
+                                if mimg:
+                                    b64 = mimg.group(1)
+                                    try:
+                                        import base64 as _b64
+                                        raw = _b64.b64decode(b64)
+                                        try:
+                                            from PIL import Image  # type: ignore
+                                            from io import BytesIO
+                                            try:
+                                                from pyzbar.pyzbar import decode as qr_decode  # type: ignore
+                                            except Exception:
+                                                qr_decode = None
+                                            if qr_decode is not None:
+                                                img = Image.open(BytesIO(raw))
+                                                dec = qr_decode(img)
+                                                for d in dec:
+                                                    data = d.data.decode("utf-8", errors="ignore")
+                                                    if data.startswith(("vless://", "vmess://", "trojan://")):
+                                                        link = data
+                                                        break
+                                        except Exception:
+                                            pass
+                                    except Exception:
+                                        pass
+                        # If body is binary image/png, try QR decode as well
+                        if not link and ("image/png" in ctype):
+                            try:
+                                raw = resp.content
+                                from PIL import Image  # type: ignore
+                                from io import BytesIO
+                                try:
+                                    from pyzbar.pyzbar import decode as qr_decode  # type: ignore
+                                except Exception:
+                                    qr_decode = None
+                                if qr_decode is not None:
+                                    img = Image.open(BytesIO(raw))
+                                    dec = qr_decode(img)
+                                    for d in dec:
+                                        data = d.data.decode("utf-8", errors="ignore")
+                                        if data.startswith(("vless://", "vmess://", "trojan://")):
+                                            link = data
+                                            break
+                            except Exception:
+                                pass
                         if link:
                             self._log.info("Stage:get_client_link success using %s; link: %s", full_url, link)
                             return link

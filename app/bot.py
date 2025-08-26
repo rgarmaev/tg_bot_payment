@@ -65,6 +65,8 @@ async def _resolve_subscription_link(url: Optional[str]) -> Optional[str]:
 
     - Accepts plain body with link
     - Accepts base64-encoded body with a single link
+    - Accepts HTML with data:image/png;base64 (QR)
+    - Accepts binary PNG and decodes QR (if dependencies available)
     - Returns first protocol link found or None
     """
     if not url:
@@ -75,19 +77,69 @@ async def _resolve_subscription_link(url: Optional[str]) -> Optional[str]:
             resp = await client.get(url)
             if resp.status_code != 200:
                 return None
-            text = resp.text.strip()
+            ctype = resp.headers.get("content-type", "").lower()
+            text = None
+            try:
+                text = resp.text.strip()
+            except Exception:
+                text = None
             # Try to find direct link in plain text
-            m = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", text)
-            if m:
-                return m.group(1)
+            if text:
+                m = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", text)
+                if m:
+                    return m.group(1)
             # Try base64 decode then search
             try:
-                decoded = base64.b64decode(text + "==").decode("utf-8", errors="ignore")
-                m2 = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", decoded)
-                if m2:
-                    return m2.group(1)
+                if text:
+                    decoded = base64.b64decode(text + "==").decode("utf-8", errors="ignore")
+                    m2 = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", decoded)
+                    if m2:
+                        return m2.group(1)
             except Exception:
                 pass
+            # Extract data URI QR from HTML
+            if text:
+                try:
+                    mimg = re.search(r"data:image/png;base64,([A-Za-z0-9+/=]+)", text)
+                    if mimg:
+                        raw = base64.b64decode(mimg.group(1))
+                        try:
+                            from PIL import Image  # type: ignore
+                            from io import BytesIO
+                            try:
+                                from pyzbar.pyzbar import decode as qr_decode  # type: ignore
+                            except Exception:
+                                qr_decode = None
+                            if qr_decode is not None:
+                                img = Image.open(BytesIO(raw))
+                                dec = qr_decode(img)
+                                for d in dec:
+                                    data = d.data.decode("utf-8", errors="ignore")
+                                    if data.startswith(("vless://", "vmess://", "trojan://")):
+                                        return data
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            # If response is PNG image, try QR decode
+            if "image/png" in ctype:
+                try:
+                    raw = resp.content
+                    from PIL import Image  # type: ignore
+                    from io import BytesIO
+                    try:
+                        from pyzbar.pyzbar import decode as qr_decode  # type: ignore
+                    except Exception:
+                        qr_decode = None
+                    if qr_decode is not None:
+                        img = Image.open(BytesIO(raw))
+                        dec = qr_decode(img)
+                        for d in dec:
+                            data = d.data.decode("utf-8", errors="ignore")
+                            if data.startswith(("vless://", "vmess://", "trojan://")):
+                                return data
+                except Exception:
+                    pass
     except Exception:
         pass
     return None
