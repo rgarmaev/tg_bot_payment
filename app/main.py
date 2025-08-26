@@ -38,8 +38,16 @@ async def lifespan(app: FastAPI):
     if settings.telegram_bot_token and settings.telegram_bot_token != "CHANGE_ME":
         # Create bot with optional proxy (helps in restricted networks)
         if settings.telegram_proxy_url:
-            session = AiohttpSession(proxy=settings.telegram_proxy_url)
-            bot = Bot(token=settings.telegram_bot_token, session=session)
+            proxy_url = settings.telegram_proxy_url.strip()
+            # Normalize socks5h -> socks5 (python-socks does not accept socks5h)
+            if proxy_url.lower().startswith("socks5h://"):
+                proxy_url = "socks5://" + proxy_url[len("socks5h://"):]
+            try:
+                session = AiohttpSession(proxy=proxy_url)
+                bot = Bot(token=settings.telegram_bot_token, session=session)
+            except Exception:
+                # Fallback without proxy if misconfigured
+                bot = Bot(token=settings.telegram_bot_token)
         else:
             bot = Bot(token=settings.telegram_bot_token)
         dispatcher = Dispatcher()
