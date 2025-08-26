@@ -20,6 +20,9 @@ from yookassa.domain.exceptions import UnauthorizedError
 from .models import User, Order, OrderStatus, Subscription
 from .x3ui.client import X3UIClient
 from .db import async_session
+import base64
+import re
+import httpx
 
 
 router = Router()
@@ -55,6 +58,39 @@ def _origin_from_base_url(base_url: Optional[str]) -> Optional[str]:
         return urlunsplit((parts.scheme, parts.netloc, "", "", ""))
     except Exception:
         return None
+
+
+async def _resolve_subscription_link(url: Optional[str]) -> Optional[str]:
+    """Fetch subscription endpoint and extract a single config URL (vless/vmess/trojan).
+
+    - Accepts plain body with link
+    - Accepts base64-encoded body with a single link
+    - Returns first protocol link found or None
+    """
+    if not url:
+        return None
+    try:
+        from .config import settings as app_settings
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True, verify=app_settings.x3ui_verify_tls) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                return None
+            text = resp.text.strip()
+            # Try to find direct link in plain text
+            m = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", text)
+            if m:
+                return m.group(1)
+            # Try base64 decode then search
+            try:
+                decoded = base64.b64decode(text + "==").decode("utf-8", errors="ignore")
+                m2 = re.search(r"(vless://[^\s\"'<]+|vmess://[^\s\"'<]+|trojan://[^\s\"'<]+)", decoded)
+                if m2:
+                    return m2.group(1)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return None
 
 
 async def ensure_user(session: AsyncSession, tg_user_id: int) -> User:
@@ -141,6 +177,8 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                             pth = pth + "/"
                         sub_token = created.note or f"tg_{message.from_user.id}"
                         sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{sub_token}"
+                    # If server didn't return link but sub_url is available, try resolving it
+                    final_url = created.config_url or await _resolve_subscription_link(sub_url)
                     # Сохраним подписку
                     result_user = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
                     user = result_user.scalar_one()
@@ -149,7 +187,7 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                         inbound_id=settings.x3ui_inbound_id,
                         xray_uuid=created.uuid,
                         expires_at=expires_at,
-                        config_url=created.config_url or sub_url,
+                        config_url=final_url or sub_url,
                         is_active=True,
                     )
                     session.add(sub)
@@ -159,8 +197,8 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                         "Оплата подтверждена и подписка создана.\n"
                         f"UUID: {created.uuid}\n"
                     )
-                    if created.config_url or sub_url:
-                        text += f"Ссылка конфигурации: {created.config_url or sub_url}"
+                    if final_url or sub_url:
+                        text += f"Ссылка конфигурации: {final_url or sub_url}"
                     await message.answer(text)
                     return
     except Exception:
@@ -510,6 +548,7 @@ async def cmd_check(message: types.Message, session: AsyncSession):
             pth = pth + "/"
         sub_token = created.note or f"tg_{message.from_user.id}"
         sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{sub_token}"
+    final_url = created.config_url or await _resolve_subscription_link(sub_url)
 
     result_user = await session.execute(
         select(User).where(User.tg_user_id == message.from_user.id)
@@ -520,7 +559,7 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         inbound_id=settings.x3ui_inbound_id,
         xray_uuid=created.uuid,
         expires_at=expires_at,
-        config_url=created.config_url or sub_url,
+        config_url=final_url or sub_url,
         is_active=True,
     )
     session.add(sub)
@@ -530,8 +569,8 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         "Оплата подтверждена и подписка создана.\n"
         f"UUID: {created.uuid}\n"
     )
-    if created.config_url or sub_url:
-        text += f"Ссылка конфигурации: {created.config_url or sub_url}"
+    if final_url or sub_url:
+        text += f"Ссылка конфигурации: {final_url or sub_url}"
     else:
         text += "Не удалось сгенерировать ссылку автоматически. Получите её в панели администратора."
     await message.answer(text)
@@ -651,19 +690,31 @@ async def _auto_check_and_activate(bot: types.Bot, tg_user_id: int, order_id: in
                 async with async_session() as s:
                     res_user = await s.execute(select(User).where(User.tg_user_id == tg_user_id))
                     user = res_user.scalar_one()
+                    # Try resolving subscription link too in auto-activation
+                    origin = _origin_from_base_url(settings.public_base_url)
+                    sub_url = None
+                    if origin and settings.x3ui_subscription_port and settings.x3ui_subscription_path:
+                        pth = settings.x3ui_subscription_path
+                        if not pth.startswith("/"):
+                            pth = "/" + pth
+                        if not pth.endswith("/"):
+                            pth = pth + "/"
+                        sub_token = created.note or f"tg_{tg_user_id}"
+                        sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{sub_token}"
+                    final_url = created.config_url or await _resolve_subscription_link(sub_url)
                     sub = Subscription(
                         user_id=user.id,
                         inbound_id=settings.x3ui_inbound_id,
                         xray_uuid=created.uuid,
                         expires_at=expires_at,
-                        config_url=created.config_url,
+                        config_url=final_url or sub_url,
                         is_active=True,
                     )
                     s.add(sub)
                     await s.commit()
                 text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"
-                if created.config_url:
-                    text += f"Ссылка конфигурации: {created.config_url}"
+                if final_url or sub_url:
+                    text += f"Ссылка конфигурации: {final_url or sub_url}"
                 else:
                     text += "Получите ссылку в панели."
                 await bot.send_message(tg_user_id, text)
