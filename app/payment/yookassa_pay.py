@@ -125,7 +125,7 @@ def register_routes(app: FastAPI) -> None:
                         inbound_id=settings.x3ui_inbound_id,
                         days=plan_days,
                         traffic_gb=settings.x3ui_client_traffic_gb,
-                        email_note=f"tg_{user.tg_user_id if user else 'unknown'}",
+                        email_note=f"tg_{user.tg_user_id if user else 'unknown'}_{int(datetime.utcnow().timestamp())}",
                     )
                     # Попробуем собрать ссылку конфигурации из inbound
                     cfg_url = None

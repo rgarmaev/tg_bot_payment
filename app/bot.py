@@ -112,7 +112,7 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                             inbound_id=settings.x3ui_inbound_id,
                             days=plan_days,
                             traffic_gb=settings.x3ui_client_traffic_gb,
-                            email_note=f"tg_{message.from_user.id}",
+                            email_note=f"tg_{message.from_user.id}_{int(datetime.utcnow().timestamp())}",
                         )
                         # Не формируем локально ссылку
                     # subscription URL
@@ -467,7 +467,7 @@ async def cmd_check(message: types.Message, session: AsyncSession):
             inbound_id=settings.x3ui_inbound_id,
             days=plan_days,
             traffic_gb=settings.x3ui_client_traffic_gb,
-            email_note=f"tg_{message.from_user.id}",
+            email_note=f"tg_{message.from_user.id}_{int(datetime.utcnow().timestamp())}",
         )
         # локально ссылку не строим
     # subscription URL (if configured)
@@ -602,7 +602,7 @@ async def _auto_check_and_activate(bot: types.Bot, tg_user_id: int, order_id: in
                         inbound_id=settings.x3ui_inbound_id,
                         days=plan_days,
                         traffic_gb=settings.x3ui_client_traffic_gb,
-                        email_note=f"tg_{tg_user_id}",
+                        email_note=f"tg_{tg_user_id}_{int(datetime.utcnow().timestamp())}",
                     )
                 async with async_session() as s:
                     res_user = await s.execute(select(User).where(User.tg_user_id == tg_user_id))
