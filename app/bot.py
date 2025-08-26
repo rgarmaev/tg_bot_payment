@@ -93,6 +93,51 @@ async def _resolve_subscription_link(url: Optional[str]) -> Optional[str]:
     return None
 
 
+def _normalize_vless_url(url: Optional[str]) -> Optional[str]:
+    if not url or not url.startswith("vless://"):
+        return url
+    try:
+        from .config import settings as app_settings
+        import urllib.parse as up
+        # Split scheme and rest
+        scheme, rest = url.split("://", 1)
+        user_host, _, tag = rest.partition("#")
+        cred_host, _, qs = user_host.partition("?")
+        user, _, host_port = cred_host.partition("@")
+        host, _, port = host_port.partition(":")
+        params = dict(up.parse_qsl(qs, keep_blank_values=True)) if qs else {}
+        # Enforce preferred values if provided
+        if app_settings.x3ui_preferred_type:
+            params["type"] = app_settings.x3ui_preferred_type
+        if app_settings.x3ui_preferred_fp:
+            params["fp"] = app_settings.x3ui_preferred_fp
+        if app_settings.x3ui_preferred_sni:
+            params["sni"] = app_settings.x3ui_preferred_sni
+        if app_settings.x3ui_preferred_sid:
+            params["sid"] = app_settings.x3ui_preferred_sid
+        if app_settings.x3ui_preferred_spx:
+            params["spx"] = app_settings.x3ui_preferred_spx
+        # Normalize security first
+        if "security" in params:
+            params["security"] = params["security"].lower()
+        # Rebuild query with stable key order
+        order = ["type", "security", "pbk", "fp", "sni", "sid", "spx"]
+        ordered = {k: params[k] for k in order if k in params}
+        # add any remaining keys
+        for k in sorted(params.keys()):
+            if k not in ordered:
+                ordered[k] = params[k]
+        new_qs = up.urlencode(ordered, doseq=False, safe="/:%")
+        # Clean tag: keep original tag if present
+        new_tag = up.quote(up.unquote(tag)) if tag else ""
+        out = f"{scheme}://{cred_host.split('?')[0]}?{new_qs}"
+        if new_tag:
+            out += f"#{new_tag}"
+        return out
+    except Exception:
+        return url
+
+
 async def ensure_user(session: AsyncSession, tg_user_id: int) -> User:
     result = await session.execute(select(User).where(User.tg_user_id == tg_user_id))
     user = result.scalar_one_or_none()
@@ -182,6 +227,7 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                     # Сохраним подписку
                     result_user = await session.execute(select(User).where(User.tg_user_id == message.from_user.id))
                     user = result_user.scalar_one()
+                    final_url = _normalize_vless_url(final_url)
                     sub = Subscription(
                         user_id=user.id,
                         inbound_id=settings.x3ui_inbound_id,
@@ -554,6 +600,7 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         select(User).where(User.tg_user_id == message.from_user.id)
     )
     user = result_user.scalar_one()
+    final_url = _normalize_vless_url(final_url)
     sub = Subscription(
         user_id=user.id,
         inbound_id=settings.x3ui_inbound_id,
@@ -702,6 +749,7 @@ async def _auto_check_and_activate(bot: types.Bot, tg_user_id: int, order_id: in
                         sub_token = created.note or f"tg_{tg_user_id}"
                         sub_url = f"{origin.split('://')[0]}://{origin.split('://')[1].split('/')[0].split(':')[0]}:{settings.x3ui_subscription_port}{pth}{sub_token}"
                     final_url = created.config_url or await _resolve_subscription_link(sub_url)
+                    final_url = _normalize_vless_url(final_url)
                     sub = Subscription(
                         user_id=user.id,
                         inbound_id=settings.x3ui_inbound_id,
