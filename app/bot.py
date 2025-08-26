@@ -267,8 +267,14 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                     await message.answer(text)
                     return
     except Exception:
-        # Игнорируем ошибки диплинка и показываем обычное меню
-        pass
+        # Если не удалось обработать диплинк — попробуем обычную проверку и не показываем меню
+        import logging as _log
+        _log.exception("Deep-link /start paid_ flow failed")
+        try:
+            await cmd_check(message, session)
+            return
+        except Exception:
+            pass
 
     kb = InlineKeyboardBuilder()
     kb.button(text="📦 Выбрать тариф", callback_data="menu:plans")
