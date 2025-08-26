@@ -23,6 +23,7 @@ from .db import async_session
 import base64
 import re
 import httpx
+from .utils import sanitize_config_link
 
 
 router = Router()
@@ -261,7 +262,8 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                         f"UUID: {created.uuid}\n"
                     )
                     if final_url or sub_url:
-                        text += f"Ссылка конфигурации: {final_url or sub_url}"
+                        safe_url = sanitize_config_link(final_url or sub_url)
+                        text += f"Ссылка конфигурации: {safe_url}"
                     await message.answer(text)
                     return
     except Exception:
@@ -633,7 +635,8 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         f"UUID: {created.uuid}\n"
     )
     if final_url or sub_url:
-        text += f"Ссылка конфигурации: {final_url or sub_url}"
+        safe_url = sanitize_config_link(final_url or sub_url)
+        text += f"Ссылка конфигурации: {safe_url}"
     else:
         text += "Не удалось сгенерировать ссылку автоматически. Получите её в панели администратора."
     await message.answer(text)
@@ -777,7 +780,8 @@ async def _auto_check_and_activate(bot: types.Bot, tg_user_id: int, order_id: in
                     await s.commit()
                 text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"
                 if final_url or sub_url:
-                    text += f"Ссылка конфигурации: {final_url or sub_url}"
+                    safe_url = sanitize_config_link(final_url or sub_url)
+                    text += f"Ссылка конфигурации: {safe_url}"
                 else:
                     text += "Получите ссылку в панели."
                 await bot.send_message(tg_user_id, text)

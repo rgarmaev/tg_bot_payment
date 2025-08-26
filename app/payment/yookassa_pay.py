@@ -4,13 +4,14 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse, HTMLResponse
 from yookassa import Configuration, Payment
 
-from ..config import settings
-from ..db import async_session
-from ..models import Order, OrderStatus, User, Subscription
-from ..x3ui.client import X3UIClient
+from .config import settings
+from .db import async_session
+from .models import Order, OrderStatus, User, Subscription
+from .x3ui.client import X3UIClient
 from sqlalchemy import select
 from datetime import datetime, timedelta
 from urllib.parse import urlsplit, urlunsplit
+from .utils import sanitize_config_link
 
 
 def _ensure_config():
@@ -156,7 +157,8 @@ def register_routes(app: FastAPI) -> None:
                     try:
                         text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"
                         if created.config_url or sub_url:
-                            text += f"Ссылка конфигурации: {created.config_url or sub_url}"
+                            safe_url = sanitize_config_link(created.config_url or sub_url)
+                            text += f"Ссылка конфигурации: {safe_url}"
                         await bot.send_message(user.tg_user_id, text)
                     except Exception:
                         pass
