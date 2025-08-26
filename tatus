@@ -1,0 +1,527 @@
+[33mcommit b012ad1ffd68afb591589a375bd7168b1ae9fee1[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Rinchin Garmaev <147985556+rgarmaev@users.noreply.github.com>
+Date:   Mon Aug 25 14:25:06 2025 +0300
+
+    Analyze web server logs for invalid requests (#2)
+    
+    * Add X3UI debug endpoint for diagnostics and connection testing
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+    
+    * Add TLS verification option for X3UI client connections
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+    
+    ---------
+    
+    Co-authored-by: Cursor Agent <cursoragent@cursor.com>
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 517e236fc61d44a3b68db2a40524aecda8676ef8[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 15:36:30 2025 +0000
+
+    feat(vless): set label to iphone-<username|userId> in VLESS link
+
+[33mcommit 425ef375bcda427252c39f4b5dc186e7deff7cff[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 15:32:01 2025 +0000
+
+    feat(x3ui): set subId to email/note for subscription token alignment
+
+[33mcommit 1cb614cd42d6215d436abf1562efc35acbcc8b66[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 15:26:01 2025 +0000
+
+    feat(x3ui): try stringified settings payload for addClient (fork compatibility)
+
+[33mcommit 7b6f579be897d71a887bef6e54780aca54301e1c[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 15:21:38 2025 +0000
+
+    fix(x3ui): treat 200 empty body as success for addClient
+
+[33mcommit 5f0939f07397961def6d3fdfca9705363e11c39b[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 14:48:23 2025 +0000
+
+    Improve X3UI client with flexible endpoint and login path handling
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 72d773d251d595927fe4356e99e7302b3629891a[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 14:29:05 2025 +0000
+
+    Use note or user ID as subscription token for X3UI subscription URL
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 9faaa691dd8fecf07d2a1346a3a99638405033e8[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 13:37:18 2025 +0000
+
+    chore: sync docker-compose changes
+
+[33mcommit ff03d272676824b9518e43e17a175565683d7421[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 13:30:56 2025 +0000
+
+    Simplify docker-compose environment configuration and add host.docker.internal
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit fd0642c47d3c8061e1b3003bdf4d2348aa71a732[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 13:17:59 2025 +0000
+
+    Update subscription URL generation to use email or Telegram ID as token
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 7a36cb531ff5b4b7482c197fe7ddc9d3cb3533bf[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 13:08:25 2025 +0000
+
+    feat(x3ui): build VLESS TCP+Reality URL (pbk/sid/sni/spx/fp) and prefer PUBLIC_BASE_URL host
+
+[33mcommit 7ac31884051521247be27a499205f99a1d86626d[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 12:38:17 2025 +0000
+
+    Add deep-link payment flow and improve config URL generation
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 3dd356b6489d8cc3f7dd0a433486ee11a2a78825[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 12:19:59 2025 +0000
+
+    feat: send x3-ui subscription/config URL after success; add X3UI_SUBSCRIPTION_*; update .env.example
+
+[33mcommit cd241259ba2d00d159773e4173add5293277137c[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 12:17:45 2025 +0000
+
+    Add optional subscription URL generation for X3UI panel
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 5e2eff12f39d0ee8f079569c9e51020ffb6d71be[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 11:18:20 2025 +0000
+
+    Improve subscription creation with dynamic expiration and config URL generation
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 1df0e7ae88f0df703d4bf97911ddc6c0736a8e35[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 10:51:21 2025 +0000
+
+    Add expires_at for subscriptions and use deep-link for payment return
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 16bb6ceba9f1e45f441fa935c2f5fe92424372db[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Fri Aug 22 10:37:12 2025 +0000
+
+    Fix YooKassa payment flow with order_id in success URL and bot access
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 2e19232550698f6cee41f65deda3786d7ac21bf0[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 16:48:48 2025 +0000
+
+    Implement YooKassa payment success handling with X3UI client integration
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit e0ea7d678e74548867cf00f13f4b8e787aafee84[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 16:38:30 2025 +0000
+
+    Improve URL handling and plan code parsing in payment and order flows
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 57a3c8f0b3439f11a85a41c0a5c56f9e4213869c[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 16:09:56 2025 +0000
+
+    Add async payment status check and auto-activation for orders
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 969d1c30b192a9715a8e9f5bdda7769ee64a2607[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 16:07:38 2025 +0000
+
+    Add YooKassa payment status check in order verification flow
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 67cc1d8af4af324738d3ff6f8c04dc7d0b320280[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 15:58:20 2025 +0000
+
+    Clean and sanitize YooKassa configuration values before setting
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 0868314fffb0f5dec041261e21e6ab703bf4f8f5[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 15:55:58 2025 +0000
+
+    Add logging for YooKassa API key configuration with masking
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 5a74fbfbbd815d8c27654523712ba484d78aac00[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 15:38:12 2025 +0000
+
+    Save payment URL and ID to order during YooKassa payment creation
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit f560c57d19fc23d7c68bce1d57c4b28d3cfe3899[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 15:32:37 2025 +0000
+
+    Add Yookassa payment status notifications via Telegram bot
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit d9a334fc48f5b44233a20287a32c395cd768b427[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 14:52:03 2025 +0000
+
+    Load environment variables from .env file in run script
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 4d36c6a716e54febfb0371f966749db095921f75[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 14:43:52 2025 +0000
+
+    Fix YooKassa payment URL retrieval with fallback and error handling
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 906870a835cb3ede75dcec95522a0517a8a7b18b[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 14:41:25 2025 +0000
+
+    Fix payment provider configuration handling and error messaging
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit d704e5a8d383fadb510a323a7170ac002b948397[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Thu Aug 21 14:26:10 2025 +0000
+
+    feat(yookassa): idempotence key; verify payment via find_one; better errors; add / and /favicon.ico
+
+[33mcommit 8cc4b68c12cf8fe249fd69779b3a482278925888[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 16:26:33 2025 +0000
+
+    Add YooKassa payment error handling and configuration validation
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit aff2469ffb697e26bf8a1322d247c27ce8f2ebeb[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 16:18:36 2025 +0000
+
+    Add root and favicon routes for basic web server functionality
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 035b8d4395fbb3504b9b173e6aa7459a9a7384b3[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 15:37:05 2025 +0000
+
+    fix(config): use Pydantic v2 model_config only; remove old Config class
+
+[33mcommit 6ce2e338874f71602a1b4447ec15076b247b222b[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 15:05:56 2025 +0000
+
+    fix(users): make user creation idempotent with INSERT OR IGNORE; guard inline button on missing payment URL
+
+[33mcommit b974f305aa66b660b6f730576e29f380f3cf8440[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 14:51:58 2025 +0000
+
+    fix(config): ignore unknown env keys to tolerate legacy ROBOKASSA_* vars
+
+[33mcommit 4d5b8b52e261bdd1790e15b8f99a698040c0981f[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 14:26:19 2025 +0000
+
+    chore(docker): drop apt install to reduce layer size; rely on pure Python wheels
+
+[33mcommit 72e8b52c4ddc144ccc14324f23fccaf6338fadff[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 14:20:09 2025 +0000
+
+    fix(deps): set yookassa==3.6.0 for Python 3.13 compatibility
+
+[33mcommit cd5d8d9ab7a7de345dec1a408f2ac94cebe0b54a[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 14:05:41 2025 +0000
+
+    chore(payments): remove Robokassa; switch project to YooKassa only
+
+[33mcommit 912e11e243b7b58067da7ebe05421aba04bac82d[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 13:36:40 2025 +0000
+
+    fix(docker): remove copying .env.example (not needed in image)
+
+[33mcommit 8861400d22207ee29ec359e97659071fa2b2d587[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 13:21:33 2025 +0000
+
+    fix(docker): install build deps and copy .env.example; force rebuild to get latest code
+
+[33mcommit da45965edfa91ff5228c94ae03198a74770e6d5c[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 11:56:10 2025 +0000
+
+    feat(payments): add YooKassa (ЮMoney) provider, routes and switch; integrate in plan purchase flow
+
+[33mcommit ba83bd4a96fdd7ef3fbf402090ce28c7650ea06b[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 11:55:09 2025 +0000
+
+    Checkpoint before follow-up message
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 4170ba3f50bc860c147eacb607e83ee07fd39539[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 11:51:33 2025 +0000
+
+    Checkpoint before follow-up message
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit a7faf27b54cd354936639ddd534c016de60011b9[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 11:32:25 2025 +0000
+
+    feat(x3-ui): prioritize /panel/api/inbounds/addClient for 3x-ui v2.6.2 and add debug logging of attempts/responses
+
+[33mcommit 775d335ab5d77ebf07225c4698c7eed988016e67[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 10:37:30 2025 +0000
+
+    feat(ui): add back buttons and enhanced welcome with tariffs and discounts
+
+[33mcommit 059692bc1f7b6b6fb976e0afdfb00d6f72716268[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 10:26:04 2025 +0000
+
+    feat(ui): add apps menu with iOS and Android download links
+
+[33mcommit 25bae2ef0dbb1dde7531484ccbf28baa3b865843[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 10:20:26 2025 +0000
+
+    fix(middleware,ui): apply session middleware to callback queries; update welcome text
+
+[33mcommit e00ce33dbdeca38c330351e7643c8b8e46efb52d[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 10:12:37 2025 +0000
+
+    fix(ui): correct dict key access in tariff buttons (quotes in f-strings)
+
+[33mcommit 841eb48165d49686f16634b4795f17718ff66047[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 10:07:17 2025 +0000
+
+    feat(ui,plans): add tariffs (1/3/6/12 months), pretty welcome/menu, plan callbacks, and plan-based subscription duration
+
+[33mcommit f536d949e361160e81d0734feaf1eefadcb0636e[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 09:58:01 2025 +0000
+
+    Checkpoint before follow-up message
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit e7cd09056cff43f738296e5220c1c595aaebffb8[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Wed Aug 20 09:25:37 2025 +0000
+
+    fix(deps): add greenlet for SQLAlchemy async engine; required in Docker
+
+[33mcommit f11a5f97f7267f4df8161022f1689d9569ecab99[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 19 16:43:08 2025 +0000
+
+    chore: remove mock payment implementation and legacy x3ui_tg_bot folder; rely solely on Robokassa
+
+[33mcommit 73ef5314d557ddad8c455e95ae073a89e02434a3[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 19 16:30:53 2025 +0000
+
+    feat(robokassa): include SuccessURL/FailURL; format amount; use transaction for order create
+
+[33mcommit d9b640d8d2cc3544075de9b4d37442f3ebe5f150[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 19 16:00:59 2025 +0000
+
+    Remove unused imports and simplify database module exports
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit e7ba531ccfc1378effa5453d261c8361d51d14e2[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 19 15:46:33 2025 +0000
+
+    fix(db+urls): use async transaction contexts; support BASE_URL alias for PUBLIC_BASE_URL
+
+[33mcommit 470d662d2b14a612d0b02b19f59de8bc02c5db19[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 19 15:40:28 2025 +0000
+
+    fix: idempotent user creation, proper async session usage, and route registration by PAYMENT_PROVIDER
+
+[33mcommit 798967bdc507c113c09aecf24b839f4ee7a81a15[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 19 15:27:58 2025 +0000
+
+    fix(docker): make run.sh container-friendly and use it as Docker CMD
+
+[33mcommit f387f521ebbdff7706ded59aa5767af81a2074da[m
+Author: Rinchin Garmaev <147985556+rgarmaev@users.noreply.github.com>
+Date:   Tue Aug 19 18:24:31 2025 +0300
+
+    Update .env
+
+[33mcommit 534e240a723f2fd84cc7c0e8ac9de270b88bdfd7[m
+Author: Rinchin Garmaev <147985556+rgarmaev@users.noreply.github.com>
+Date:   Tue Aug 19 18:24:13 2025 +0300
+
+    Create .env
+
+[33mcommit b91141500b937572bcb33296c3036767e6752984[m
+Merge: 9c2b8c7 8c1a10f
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 19 12:37:08 2025 +0000
+
+    merge: resolve docker-compose.yml conflict (single app service with envs and .env mount)
+
+[33mcommit 8c1a10f711c2e3edcb07c8f2819961fa3e91f2c2[m[33m ([m[1;31morigin/cursor/x3-ui-d315[m[33m)[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 19 12:36:11 2025 +0000
+
+    chore(docker): add Dockerfile, .dockerignore, and docker-compose for deployment
+
+[33mcommit 9c2b8c77637ebb91d01d21b9a8e77667a63e7a7b[m
+Author: R.Garmaev <garmaev.rinchin@gmail.com>
+Date:   Tue Aug 19 15:28:52 2025 +0300
+
+    Сохранение изменений
+
+[33mcommit bab316e92f6ac9a4c7964aac702a5e009c92a542[m
+Author: R.Garmaev <garmaev.rinchin@gmail.com>
+Date:   Tue Aug 19 15:19:14 2025 +0300
+
+    Test deploy
+
+[33mcommit e56c49680d3c9acd2ecb0eea14b7a96850c35b96[m
+Merge: c2de922 4e8d122
+Author: R.Garmaev <garmaev.rinchin@gmail.com>
+Date:   Tue Aug 19 15:15:22 2025 +0300
+
+    Merge remote-tracking branch 'origin/cursor/x3-ui-d315'
+    
+    # Conflicts:
+    #       .idea/misc.xml
+    #       .idea/vpn_bot_payment.iml
+
+[33mcommit 4e8d122b18a4087a770150c1eb205301d801f9c5[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Tue Aug 19 12:12:36 2025 +0000
+
+    feat(payments): make Robokassa gateway URL configurable via ROBOKASSA_GATEWAY_URL; update .env.example
+
+[33mcommit c2de922c73ce864b6889b8d27073deb877e24375[m
+Author: R.Garmaev <garmaev.rinchin@gmail.com>
+Date:   Tue Aug 19 15:01:32 2025 +0300
+
+    Test deploy
+
+[33mcommit 1c171ec44811770e895624e492af95cc129d6c22[m
+Author: R.Garmaev <garmaev.rinchin@gmail.com>
+Date:   Tue Aug 19 13:32:32 2025 +0300
+
+    update project
+
+[33mcommit b6b453aa694aae68cf6cb53ab32ca69a1b37d453[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Mon Aug 18 15:20:32 2025 +0000
+
+    docs: update .env.example with Robokassa and x3-ui settings
+
+[33mcommit bb7d19bd33318bd55474b2909955360194580391[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Mon Aug 18 15:06:16 2025 +0000
+
+    feat(payments): add Robokassa integration (result/success/fail), switch /buy to Robokassa link
+
+[33mcommit 0ef01dc02d5bdcd9202f0dd666b1f58a0289064f[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Mon Aug 18 14:52:40 2025 +0000
+
+    fix: stable DB session middleware; guard pay URL with PUBLIC_BASE_URL
+
+[33mcommit 9c37f96b05f54ea68637fa060361711cb2790bba[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Mon Aug 18 14:40:48 2025 +0000
+
+    Add get-pip.py script for installing pip on Python 3.9+
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit f6259beff87fc6e362389345798b1a55db66c154[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Mon Aug 18 14:40:33 2025 +0000
+
+    chore(repo): flatten to single-project layout; add .gitignore; remove caches and IDE files
+
+[33mcommit a7a9c79f9de397518c070cedeaa85407a90b5f37[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Mon Aug 18 14:13:16 2025 +0000
+
+    fix(deps): pin pydantic==2.8.2 for aiogram 3.13.1 compatibility
+
+[33mcommit 7a030be001f4796fb4263d8b525b624feefda358[m
+Author: Rinchin Garmaev <147985556+rgarmaev@users.noreply.github.com>
+Date:   Mon Aug 18 16:40:56 2025 +0300
+
+    Initialize x3ui Telegram bot project with core functionality (#1)
+    
+    Co-authored-by: Cursor Agent <cursoragent@cursor.com>
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit d2bc259c66649c4132227504f7d064cffb3b443c[m
+Author: Cursor Agent <cursoragent@cursor.com>
+Date:   Mon Aug 18 13:39:05 2025 +0000
+
+    Initialize x3ui Telegram bot project with core functionality
+    
+    Co-authored-by: loko.bur <loko.bur@gmail.com>
+
+[33mcommit 488777a9c94b3a0601820f0377f1d1fa4bb742b3[m
+Author: R.Garmaev <garmaev.rinchin@gmail.com>
+Date:   Mon Aug 18 15:36:06 2025 +0300
+
+    1
