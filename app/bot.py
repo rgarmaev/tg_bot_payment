@@ -331,25 +331,12 @@ async def cb_home(callback: types.CallbackQuery):
     kb.button(text="📦 Выбрать тариф", callback_data="menu:plans")
     kb.button(text="📄 Мои подписки", callback_data="menu:subs")
     kb.button(text="📲 Скачать приложение", callback_data="menu:apps")
+    if settings.support_chat_url:
+        kb.button(text="🛠 Техническая поддержка", url=settings.support_chat_url)
+    if settings.instruction_url:
+        kb.button(text="📘 Инструкция", url=settings.instruction_url)
     kb.adjust(1)
-
-    base_month_price = next((p["price"] for p in PLANS if p["code"] == "m1"), 200)
-    lines = []
-    for p in PLANS:
-        days = p["days"]
-        months = 12 if days >= 360 else max(1, round(days / 30))
-        full_price = base_month_price * months
-        discount = max(0, int(round((1 - (p["price"] / full_price)) * 100)))
-        lines.append(f"- {p['title']}: {p['price']}₽ (скидка {discount}% при оплате за {months} мес)")
-
-    text = (
-        "🔥 Добро пожаловать в MY VPN Server!\n"
-        "Доступ в сеть без ограничений!\n\n"
-        "Тарифы и скидки:\n" + "\n".join(lines) + "\n\n"
-        "Выберите тариф и оплатите — доступ придёт автоматически.\n\n"
-        "Команды: /buy • /check • /my"
-    )
-    await callback.message.edit_text(text, reply_markup=kb.as_markup())
+    await callback.message.edit_text("Главное меню:", reply_markup=kb.as_markup())
     await callback.answer()
 
 

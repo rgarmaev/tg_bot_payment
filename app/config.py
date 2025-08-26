@@ -41,6 +41,10 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("PUBLIC_BASE_URL", "BASE_URL"),
     )
 
+    # Support/Docs
+    support_chat_url: str | None = None
+    instruction_url: str | None = None
+
     # Pricing/tariffs
     plan_name: str = "Monthly"
     plan_days: int = 30
