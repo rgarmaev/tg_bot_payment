@@ -41,13 +41,6 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("PUBLIC_BASE_URL", "BASE_URL"),
     )
 
-    # Preferred VLESS URL normalization (optional)
-    x3ui_preferred_sni: str | None = None
-    x3ui_preferred_sid: str | None = None
-    x3ui_preferred_spx: str | None = None  # e.g. "/"
-    x3ui_preferred_type: str | None = None  # e.g. "tcp"
-    x3ui_preferred_fp: str | None = None    # e.g. "chrome"
-
     # Pricing/tariffs
     plan_name: str = "Monthly"
     plan_days: int = 30
