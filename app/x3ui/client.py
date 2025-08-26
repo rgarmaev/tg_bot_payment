@@ -132,209 +132,102 @@ class X3UIClient:
             },
         }
 
-        # Try the correct endpoint first
-        endpoint = f"{self.base_url}/panel/api/inbounds/addClient"
-        try:
-            headers = {"Accept": "application/json", "Content-Type": "application/json"}
-            self._log.info("Stage:add_client request %s (payload format=v1)", endpoint)
-            self._log.info("Payload: %s", json.dumps(payload, indent=2))
-            
-            resp = await self._client.post(endpoint, json=payload, headers=headers)
-            body = resp.text
-            self._log.info("Stage:add_client response %s -> %s %s", endpoint, resp.status_code, body[:400])
-            self._log.info("Stage:add_client resp.headers=%s", dict(resp.headers))
-            
-            if resp.status_code == 200:
-                # Check if response indicates success and try to extract config URL from the response
-                config_url: Optional[str] = None
-                is_success = False
-                try:
-                    data = resp.json()
-                    self._log.debug("Stage:add_client parsed JSON: %s", data)
-                    if isinstance(data, dict):
-                        # Decide success strictly by flags, not by substring
-                        success_flag = data.get("success")
-                        ok_flag = data.get("ok")
-                        status_val = str(data.get("status")).lower() if data.get("status") is not None else None
-                        code_val = data.get("code")
-                        is_success = (
-                            success_flag is True
-                            or ok_flag is True
-                            or status_val in {"success", "ok"}
-                            or code_val == 0
-                        )
-                        # Extract possible link fields
-                        candidates = []
-                        for key in [
-                            "link",
-                            "url",
-                            "config",
-                            "configUrl",
-                            "vless",
-                            "vmess",
-                            "trojan",
-                        ]:
-                            val = data.get(key)
-                            if isinstance(val, str):
-                                candidates.append(val)
-                        for container_key in ["obj", "data", "result", "client"]:
-                            container = data.get(container_key)
-                            if isinstance(container, dict):
-                                for key in [
-                                    "link",
-                                    "url",
-                                    "config",
-                                    "configUrl",
-                                    "vless",
-                                    "vmess",
-                                    "trojan",
-                                ]:
-                                    val = container.get(key)
-                                    if isinstance(val, str):
-                                        candidates.append(val)
-                            if isinstance(container, list):
-                                for it in container:
-                                    if isinstance(it, dict):
-                                        for key in [
-                                            "link",
-                                            "url",
-                                            "config",
-                                            "configUrl",
-                                            "vless",
-                                            "vmess",
-                                            "trojan",
-                                        ]:
-                                            val = it.get(key)
-                                            if isinstance(val, str):
-                                                candidates.append(val)
-                        for c in candidates:
-                            if isinstance(c, str) and (c.startswith("vless://") or c.startswith("vmess://") or c.startswith("trojan://")):
-                                config_url = c
-                                break
-                except Exception:
-                    # not JSON or unexpected shape
-                    pass
-
-                if is_success:
-                    if config_url:
-                        self._log.info("Stage:add_client using server config URL: %s", config_url)
-                    else:
-                        self._log.info("Stage:add_client success detected; no server link provided")
-                    return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
-                else:
-                    self._log.warning("Stage:add_client not successful, will try fallbacks. Body: %s", body)
-            else:
-                self._log.warning("Stage:add_client HTTP %s response: %s", resp.status_code, body)
-        except Exception as e:
-            self._log.warning("Stage:add_client error on %s: %s", endpoint, e)
-
-        # Fallback: try alternative endpoints with different payload formats
-        fallback_payloads = [
-            {
-                "id": inbound_id,
-                "settings": {
-                    "clients": [
-                        {
-                            "id": client_uuid,
-                            "email": email_note,
-                            "enable": True,
-                            "limitIp": 0,
-                            "totalGB": total_gb_bytes or 0,
-                            "expiryTime": expiry_ms,
-                        }
-                    ]
+        # Try multiple endpoint subpaths (with and without base path) and both payload formats
+        subpaths = [
+            "panel/api/inbounds/addClient",
+            "api/inbounds/addClient",
+            "panel/inbound/addClient",
+            "xui/inbound/addClient",
+        ]
+        endpoints = self._candidates(subpaths)
+        payloads = [
+            ("v1", payload),
+            (
+                "v2",
+                {
+                    "id": inbound_id,
+                    "settings": {
+                        "clients": [
+                            {
+                                "id": client_uuid,
+                                "email": email_note,
+                                "enable": True,
+                                "limitIp": 0,
+                                "totalGB": total_gb_bytes or 0,
+                                "expiryTime": expiry_ms,
+                            }
+                        ]
+                    },
                 },
-            },
+            ),
         ]
 
-        fallback_endpoints = [
-            f"{self.base_url}/api/inbounds/addClient",
-            f"{self.base_url}/panel/inbound/addClient",
-            f"{self.base_url}/xui/inbound/addClient",
-        ]
-
-        for endpoint in fallback_endpoints:
-            for payload in fallback_payloads:
+        for ep in endpoints:
+            full_url = f"{self.base_url}{ep}"
+            for pf_name, pf_payload in payloads:
                 try:
                     headers = {"Accept": "application/json", "Content-Type": "application/json"}
-                    self._log.info("Stage:add_client fallback request %s", endpoint)
-                    self._log.info("Payload: %s", json.dumps(payload, indent=2))
-                    
-                    resp = await self._client.post(endpoint, json=payload, headers=headers)
+                    self._log.info("Stage:add_client try %s with payload %s", full_url, pf_name)
+                    self._log.info("Payload: %s", json.dumps(pf_payload, indent=2))
+                    resp = await self._client.post(full_url, json=pf_payload, headers=headers)
                     body = resp.text
-                    self._log.info("Stage:add_client fallback response %s -> %s %s", endpoint, resp.status_code, body[:400])
-                    
+                    self._log.info("Stage:add_client resp %s -> %s %s", full_url, resp.status_code, body[:400])
                     if resp.status_code == 200:
-                        # Try to extract config URL from fallback responses as well
+                        # Parse success and extract link
                         config_url: Optional[str] = None
+                        is_success = False
                         try:
                             data = resp.json()
-                            self._log.debug("Stage:add_client parsed JSON (fallback): %s", data)
-                            candidates = []
+                            self._log.debug("Stage:add_client parsed JSON: %s", data)
                             if isinstance(data, dict):
-                                for key in [
-                                    "link",
-                                    "url",
-                                    "config",
-                                    "configUrl",
-                                    "vless",
-                                    "vmess",
-                                    "trojan",
-                                ]:
+                                success_flag = data.get("success")
+                                ok_flag = data.get("ok")
+                                status_val = str(data.get("status")).lower() if data.get("status") is not None else None
+                                code_val = data.get("code")
+                                is_success = (
+                                    success_flag is True
+                                    or ok_flag is True
+                                    or status_val in {"success", "ok"}
+                                    or code_val == 0
+                                )
+                                candidates: list[str] = []
+                                for key in ["link", "url", "config", "configUrl", "vless", "vmess", "trojan"]:
                                     val = data.get(key)
                                     if isinstance(val, str):
                                         candidates.append(val)
                                 for container_key in ["obj", "data", "result", "client"]:
                                     container = data.get(container_key)
                                     if isinstance(container, dict):
-                                        for key in [
-                                            "link",
-                                            "url",
-                                            "config",
-                                            "configUrl",
-                                            "vless",
-                                            "vmess",
-                                            "trojan",
-                                        ]:
+                                        for key in ["link", "url", "config", "configUrl", "vless", "vmess", "trojan"]:
                                             val = container.get(key)
                                             if isinstance(val, str):
                                                 candidates.append(val)
                                     if isinstance(container, list):
                                         for it in container:
                                             if isinstance(it, dict):
-                                                for key in [
-                                                    "link",
-                                                    "url",
-                                                    "config",
-                                                    "configUrl",
-                                                    "vless",
-                                                    "vmess",
-                                                    "trojan",
-                                                ]:
+                                                for key in ["link", "url", "config", "configUrl", "vless", "vmess", "trojan"]:
                                                     val = it.get(key)
                                                     if isinstance(val, str):
                                                         candidates.append(val)
-                            for c in candidates:
-                                if isinstance(c, str) and (c.startswith("vless://") or c.startswith("vmess://") or c.startswith("trojan://")):
-                                    config_url = c
-                                    break
+                                for c in candidates:
+                                    if isinstance(c, str) and (c.startswith("vless://") or c.startswith("vmess://") or c.startswith("trojan://")):
+                                        config_url = c
+                                        break
                         except Exception:
                             pass
 
-                        if config_url:
-                            self._log.info("Stage:add_client using server config URL (fallback): %s", config_url)
+                        if is_success:
+                            if config_url:
+                                self._log.info("Stage:add_client success using %s; config URL: %s", full_url, config_url)
+                            else:
+                                self._log.info("Stage:add_client success using %s; no link provided", full_url)
                             return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
-
-                        lower = body.lower()
-                        if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
-                            self._log.info("Stage:add_client success(no link) on fallback")
-                            return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
                         else:
-                            self._log.warning("Stage:add_client fallback body indicates failure: %s", body)
+                            self._log.warning("Stage:add_client body indicates failure on %s: %s", full_url, body)
                     else:
-                        self._log.warning("Stage:add_client fallback HTTP %s response: %s", resp.status_code, body)
+                        self._log.warning("Stage:add_client HTTP %s on %s: %s", resp.status_code, full_url, body)
                 except Exception as e:
-                    self._log.warning("Stage:add_client fallback error on %s: %s", endpoint, e)
+                    self._log.warning("Stage:add_client error on %s: %s", full_url, e)
                     continue
 
         self._log.error("Stage:add_client failed after all endpoints")
