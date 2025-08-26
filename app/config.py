@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore", env_file=".env", env_file_encoding="utf-8")
     telegram_bot_token: str = "CHANGE_ME"
     admin_user_id: int | None = None
+    telegram_proxy_url: str | None = None  # e.g. "socks5h://user:pass@host:port" or "http://host:port"
 
     # Payment provider switch
     payment_provider: str = "yookassa"  # yookassa

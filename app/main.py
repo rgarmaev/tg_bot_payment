@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Response
 from fastapi.responses import PlainTextResponse
 from aiogram import Bot, Dispatcher, BaseMiddleware
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.types import Update
 
 from .config import settings
@@ -35,7 +36,12 @@ async def lifespan(app: FastAPI):
 
     polling_task = None
     if settings.telegram_bot_token and settings.telegram_bot_token != "CHANGE_ME":
-        bot = Bot(token=settings.telegram_bot_token)
+        # Create bot with optional proxy (helps in restricted networks)
+        if settings.telegram_proxy_url:
+            session = AiohttpSession(proxy=settings.telegram_proxy_url)
+            bot = Bot(token=settings.telegram_bot_token, session=session)
+        else:
+            bot = Bot(token=settings.telegram_bot_token)
         dispatcher = Dispatcher()
         dispatcher.message.middleware(SessionMiddleware())
         dispatcher.callback_query.middleware(SessionMiddleware())
