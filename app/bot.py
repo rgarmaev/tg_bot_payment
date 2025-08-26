@@ -280,6 +280,10 @@ async def cmd_start(message: types.Message, session: AsyncSession):
     kb.button(text="📦 Выбрать тариф", callback_data="menu:plans")
     kb.button(text="📄 Мои подписки", callback_data="menu:subs")
     kb.button(text="📲 Скачать приложение", callback_data="menu:apps")
+    if settings.support_chat_url:
+        kb.button(text="🛠 Техническая поддержка", url=settings.support_chat_url)
+    if settings.instruction_url:
+        kb.button(text="📘 Инструкция", url=settings.instruction_url)
     kb.adjust(1)
 
     # Build tariffs/discounts lines
