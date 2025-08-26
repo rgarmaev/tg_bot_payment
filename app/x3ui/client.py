@@ -61,25 +61,40 @@ class X3UIClient:
     async def login(self) -> None:
         if not (self.username and self.password):
             return
-        paths = self._candidates(["login"])  # e.g., /login and /x3ui/login
+        paths = self._candidates(["login", "x3ui/login"])  # try /login and explicit /x3ui/login
+        try:
+            cookie_names = ", ".join(self._client.cookies.keys()) if hasattr(self._client, "cookies") else "<none>"
+        except Exception:
+            cookie_names = "<error>"
+        self._log.info("Stage:login start; candidates=%s; cookies(before)=%s", paths, cookie_names)
         for p in paths:
             try:
                 full_url = f"{self.base_url}{p}"
+                self._log.debug("Stage:login POST form %s", full_url)
                 resp = await self._client.post(full_url, data={"username": self.username, "password": self.password})
                 if 200 <= resp.status_code < 400:
-                    self._log.info("Login successful via %s", full_url)
+                    try:
+                        cookie_names = ", ".join(self._client.cookies.keys()) if hasattr(self._client, "cookies") else "<none>"
+                    except Exception:
+                        cookie_names = "<error>"
+                    self._log.info("Stage:login success via %s; cookies=%s", full_url, cookie_names)
                     return
             except Exception as e:
-                self._log.debug("Login failed via %s: %s", full_url, e)
+                self._log.debug("Stage:login failed via %s (form): %s", full_url, e)
                 pass
             try:
                 full_url = f"{self.base_url}{p}"
+                self._log.debug("Stage:login POST json %s", full_url)
                 resp = await self._client.post(full_url, json={"username": self.username, "password": self.password})
                 if 200 <= resp.status_code < 400:
-                    self._log.info("Login successful via %s", full_url)
+                    try:
+                        cookie_names = ", ".join(self._client.cookies.keys()) if hasattr(self._client, "cookies") else "<none>"
+                    except Exception:
+                        cookie_names = "<error>"
+                    self._log.info("Stage:login success via %s; cookies=%s", full_url, cookie_names)
                     return
             except Exception as e:
-                self._log.debug("Login failed via %s: %s", full_url, e)
+                self._log.debug("Stage:login failed via %s (json): %s", full_url, e)
                 pass
 
     async def add_client(
@@ -90,6 +105,11 @@ class X3UIClient:
         email_note: str,
     ) -> X3UICreateClientResult:
         await self.login()
+        try:
+            cookie_names = ", ".join(self._client.cookies.keys()) if hasattr(self._client, "cookies") else "<none>"
+        except Exception:
+            cookie_names = "<error>"
+        self._log.info("Stage:add_client start; cookies=%s", cookie_names)
         client_uuid = str(uuid.uuid4())
         expiry_ms = int((datetime.utcnow() + timedelta(days=days)).timestamp() * 1000)
         total_gb_bytes = None
@@ -116,20 +136,20 @@ class X3UIClient:
         endpoint = f"{self.base_url}/panel/api/inbounds/addClient"
         try:
             headers = {"Accept": "application/json", "Content-Type": "application/json"}
-            self._log.info("x3-ui addClient trying %s with correct payload", endpoint)
+            self._log.info("Stage:add_client request %s (payload format=v1)", endpoint)
             self._log.info("Payload: %s", json.dumps(payload, indent=2))
             
             resp = await self._client.post(endpoint, json=payload, headers=headers)
             body = resp.text
-            self._log.info("x3-ui addClient %s -> %s %s", endpoint, resp.status_code, body[:400])
-            self._log.info("Response headers: %s", dict(resp.headers))
+            self._log.info("Stage:add_client response %s -> %s %s", endpoint, resp.status_code, body[:400])
+            self._log.info("Stage:add_client resp.headers=%s", dict(resp.headers))
             
             if resp.status_code == 200:
                 # Check if response indicates success and try to extract config URL from the response
                 config_url: Optional[str] = None
                 try:
                     data = resp.json()
-                    self._log.debug("Parsed JSON response: %s", data)
+                    self._log.debug("Stage:add_client parsed JSON: %s", data)
                     # 3x-ui variants may return data in different shapes
                     # Try common fields first
                     candidates = []
@@ -188,24 +208,24 @@ class X3UIClient:
                     pass
 
                 if config_url:
-                    self._log.info("Using config URL from server response: %s", config_url)
+                    self._log.info("Stage:add_client using server config URL: %s", config_url)
                     return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
 
                 # If body is empty but HTTP 200, treat as success but do NOT generate link locally
                 if not body or not body.strip():
-                    self._log.info("Empty response body, treating as success without local link generation")
+                    self._log.info("Stage:add_client empty body; success (no local link)")
                     return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
 
                 lower = body.lower()
                 if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
-                    self._log.info("Success response detected but no config URL provided by server")
+                    self._log.info("Stage:add_client success detected; no server link provided")
                     return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
                 else:
-                    self._log.warning("Response indicates failure: %s", body)
+                    self._log.warning("Stage:add_client failure indicated by body: %s", body)
             else:
-                self._log.warning("HTTP %s response: %s", resp.status_code, body)
+                self._log.warning("Stage:add_client HTTP %s response: %s", resp.status_code, body)
         except Exception as e:
-            self._log.warning("x3-ui addClient error on %s: %s", endpoint, e)
+            self._log.warning("Stage:add_client error on %s: %s", endpoint, e)
 
         # Fallback: try alternative endpoints with different payload formats
         fallback_payloads = [
@@ -236,19 +256,19 @@ class X3UIClient:
             for payload in fallback_payloads:
                 try:
                     headers = {"Accept": "application/json", "Content-Type": "application/json"}
-                    self._log.info("x3-ui addClient fallback try %s", endpoint)
+                    self._log.info("Stage:add_client fallback request %s", endpoint)
                     self._log.info("Payload: %s", json.dumps(payload, indent=2))
                     
                     resp = await self._client.post(endpoint, json=payload, headers=headers)
                     body = resp.text
-                    self._log.info("x3-ui addClient %s -> %s %s", endpoint, resp.status_code, body[:400])
+                    self._log.info("Stage:add_client fallback response %s -> %s %s", endpoint, resp.status_code, body[:400])
                     
                     if resp.status_code == 200:
                         # Try to extract config URL from fallback responses as well
                         config_url: Optional[str] = None
                         try:
                             data = resp.json()
-                            self._log.debug("Parsed JSON response (fallback): %s", data)
+                            self._log.debug("Stage:add_client parsed JSON (fallback): %s", data)
                             candidates = []
                             if isinstance(data, dict):
                                 for key in [
@@ -301,27 +321,28 @@ class X3UIClient:
                             pass
 
                         if config_url:
-                            self._log.info("Using config URL from server response (fallback): %s", config_url)
+                            self._log.info("Stage:add_client using server config URL (fallback): %s", config_url)
                             return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
 
                         lower = body.lower()
                         if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
-                            self._log.info("Success response detected but no config URL provided by server (fallback)")
+                            self._log.info("Stage:add_client success(no link) on fallback")
                             return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
                         else:
-                            self._log.warning("Response indicates failure: %s", body)
+                            self._log.warning("Stage:add_client fallback body indicates failure: %s", body)
                     else:
-                        self._log.warning("HTTP %s response: %s", resp.status_code, body)
+                        self._log.warning("Stage:add_client fallback HTTP %s response: %s", resp.status_code, body)
                 except Exception as e:
-                    self._log.warning("x3-ui addClient fallback error on %s: %s", endpoint, e)
+                    self._log.warning("Stage:add_client fallback error on %s: %s", endpoint, e)
                     continue
 
-        self._log.error("Failed to add client after trying all endpoints")
+        self._log.error("Stage:add_client failed after all endpoints")
         # Do not generate the link locally; return without config URL
         return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
 
     async def get_inbound(self, inbound_id: int) -> Optional[dict]:
         await self.login()
+        self._log.info("Stage:get_inbound start id=%s", inbound_id)
         subpaths = [
             f"panel/api/inbounds/get/{inbound_id}",
             "panel/api/inbounds/list",
@@ -332,6 +353,7 @@ class X3UIClient:
         for ep in paths:
             try:
                 full_url = f"{self.base_url}{ep}"
+                self._log.debug("Stage:get_inbound request %s", full_url)
                 resp = await self._client.get(full_url)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -347,7 +369,7 @@ class X3UIClient:
                                 if it.get("id") == inbound_id:
                                     return it
             except Exception as e:
-                self._log.debug("get_inbound %s error: %s", ep, e)
+                self._log.debug("Stage:get_inbound %s error: %s", ep, e)
                 continue
         return None
 
