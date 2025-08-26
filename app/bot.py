@@ -129,16 +129,6 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                             traffic_gb=settings.x3ui_client_traffic_gb,
                             email_note=f"tg_{message.from_user.id}_{int(datetime.utcnow().timestamp())}",
                         )
-                        # Fallback: build link locally if server didn't return one
-                        cfg_url = created.config_url
-                        if not cfg_url:
-                            try:
-                                inbound = await x3.get_inbound(settings.x3ui_inbound_id)
-                                if inbound:
-                                    label_base = (message.from_user.username or f"user{message.from_user.id}")
-                                    cfg_url = x3.build_vless_url(inbound, created.uuid, f"iphone-{label_base}")
-                            except Exception:
-                                cfg_url = None
                         # Не формируем локально ссылку
                     # subscription URL
                     sub_url = None
@@ -159,7 +149,7 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                         inbound_id=settings.x3ui_inbound_id,
                         xray_uuid=created.uuid,
                         expires_at=expires_at,
-                        config_url=cfg_url or sub_url,
+                        config_url=created.config_url or sub_url,
                         is_active=True,
                     )
                     session.add(sub)
@@ -169,8 +159,8 @@ async def cmd_start(message: types.Message, session: AsyncSession):
                         "Оплата подтверждена и подписка создана.\n"
                         f"UUID: {created.uuid}\n"
                     )
-                    if cfg_url or sub_url:
-                        text += f"Ссылка конфигурации: {cfg_url or sub_url}"
+                    if created.config_url or sub_url:
+                        text += f"Ссылка конфигурации: {created.config_url or sub_url}"
                     await message.answer(text)
                     return
     except Exception:
@@ -509,16 +499,6 @@ async def cmd_check(message: types.Message, session: AsyncSession):
             traffic_gb=settings.x3ui_client_traffic_gb,
             email_note=f"tg_{message.from_user.id}_{int(datetime.utcnow().timestamp())}",
         )
-        # Fallback: build link locally if server didn't return one
-        cfg_url = created.config_url
-        if not cfg_url:
-            try:
-                inbound = await x3.get_inbound(settings.x3ui_inbound_id)
-                if inbound:
-                    label_base = (message.from_user.username or f"user{message.from_user.id}")
-                    cfg_url = x3.build_vless_url(inbound, created.uuid, f"iphone-{label_base}")
-            except Exception:
-                cfg_url = None
     # subscription URL (if configured)
     sub_url = None
     origin = _origin_from_base_url(settings.public_base_url)
@@ -540,7 +520,7 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         inbound_id=settings.x3ui_inbound_id,
         xray_uuid=created.uuid,
         expires_at=expires_at,
-        config_url=cfg_url or sub_url,
+        config_url=created.config_url or sub_url,
         is_active=True,
     )
     session.add(sub)
@@ -550,8 +530,8 @@ async def cmd_check(message: types.Message, session: AsyncSession):
         "Оплата подтверждена и подписка создана.\n"
         f"UUID: {created.uuid}\n"
     )
-    if cfg_url or sub_url:
-        text += f"Ссылка конфигурации: {cfg_url or sub_url}"
+    if created.config_url or sub_url:
+        text += f"Ссылка конфигурации: {created.config_url or sub_url}"
     else:
         text += "Не удалось сгенерировать ссылку автоматически. Получите её в панели администратора."
     await message.answer(text)
@@ -667,15 +647,7 @@ async def _auto_check_and_activate(bot: types.Bot, tg_user_id: int, order_id: in
                         traffic_gb=settings.x3ui_client_traffic_gb,
                         email_note=f"tg_{tg_user_id}_{int(datetime.utcnow().timestamp())}",
                     )
-                    # Fallback: build link locally if server didn't return one
-                    cfg_url = created.config_url
-                    if not cfg_url:
-                        try:
-                            inbound = await x3.get_inbound(settings.x3ui_inbound_id)
-                            if inbound:
-                                cfg_url = x3.build_vless_url(inbound, created.uuid, f"tg_{tg_user_id}")
-                        except Exception:
-                            cfg_url = None
+                
                 async with async_session() as s:
                     res_user = await s.execute(select(User).where(User.tg_user_id == tg_user_id))
                     user = res_user.scalar_one()
@@ -684,14 +656,14 @@ async def _auto_check_and_activate(bot: types.Bot, tg_user_id: int, order_id: in
                         inbound_id=settings.x3ui_inbound_id,
                         xray_uuid=created.uuid,
                         expires_at=expires_at,
-                        config_url=cfg_url,
+                        config_url=created.config_url,
                         is_active=True,
                     )
                     s.add(sub)
                     await s.commit()
                 text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"
-                if cfg_url:
-                    text += f"Ссылка конфигурации: {cfg_url}"
+                if created.config_url:
+                    text += f"Ссылка конфигурации: {created.config_url}"
                 else:
                     text += "Получите ссылку в панели."
                 await bot.send_message(tg_user_id, text)
