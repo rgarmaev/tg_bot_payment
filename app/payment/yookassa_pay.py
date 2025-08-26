@@ -127,14 +127,7 @@ def register_routes(app: FastAPI) -> None:
                         traffic_gb=settings.x3ui_client_traffic_gb,
                         email_note=f"tg_{user.tg_user_id if user else 'unknown'}_{int(datetime.utcnow().timestamp())}",
                     )
-                    # Попробуем собрать ссылку конфигурации из inbound
-                    cfg_url = None
-                    try:
-                        inbound = await x3.get_inbound(settings.x3ui_inbound_id)
-                        if inbound:
-                            cfg_url = x3.build_vless_url(inbound, created.uuid, f"tg_{user.tg_user_id}")
-                    except Exception:
-                        cfg_url = None
+                    # Не формируем локально ссылку
                 # Попробуем собрать ссылку подписки по email (note)
                 sub_url = None
                 origin = _origin_from_base(settings.public_base_url)
@@ -152,7 +145,7 @@ def register_routes(app: FastAPI) -> None:
                     inbound_id=settings.x3ui_inbound_id,
                     xray_uuid=created.uuid,
                     expires_at=expires_at,
-                    config_url=cfg_url or sub_url or created.config_url,
+                    config_url=created.config_url or sub_url,
                     is_active=True,
                 )
                 session.add(sub)
@@ -162,8 +155,8 @@ def register_routes(app: FastAPI) -> None:
                 if bot and user:
                     try:
                         text = "Оплата подтверждена и подписка создана.\n" f"UUID: {created.uuid}\n"
-                        if cfg_url or sub_url or created.config_url:
-                            text += f"Ссылка конфигурации: {cfg_url or sub_url or created.config_url}"
+                        if created.config_url or sub_url:
+                            text += f"Ссылка конфигурации: {created.config_url or sub_url}"
                         await bot.send_message(user.tg_user_id, text)
                     except Exception:
                         pass
