@@ -147,14 +147,24 @@ class X3UIClient:
             if resp.status_code == 200:
                 # Check if response indicates success and try to extract config URL from the response
                 config_url: Optional[str] = None
+                is_success = False
                 try:
                     data = resp.json()
                     self._log.debug("Stage:add_client parsed JSON: %s", data)
-                    # 3x-ui variants may return data in different shapes
-                    # Try common fields first
-                    candidates = []
                     if isinstance(data, dict):
-                        # direct fields
+                        # Decide success strictly by flags, not by substring
+                        success_flag = data.get("success")
+                        ok_flag = data.get("ok")
+                        status_val = str(data.get("status")).lower() if data.get("status") is not None else None
+                        code_val = data.get("code")
+                        is_success = (
+                            success_flag is True
+                            or ok_flag is True
+                            or status_val in {"success", "ok"}
+                            or code_val == 0
+                        )
+                        # Extract possible link fields
+                        candidates = []
                         for key in [
                             "link",
                             "url",
@@ -167,7 +177,6 @@ class X3UIClient:
                             val = data.get(key)
                             if isinstance(val, str):
                                 candidates.append(val)
-                        # nested under obj or data
                         for container_key in ["obj", "data", "result", "client"]:
                             container = data.get(container_key)
                             if isinstance(container, dict):
@@ -198,30 +207,22 @@ class X3UIClient:
                                             val = it.get(key)
                                             if isinstance(val, str):
                                                 candidates.append(val)
-                    # choose first URL-looking candidate
-                    for c in candidates:
-                        if isinstance(c, str) and (c.startswith("vless://") or c.startswith("vmess://") or c.startswith("trojan://")):
-                            config_url = c
-                            break
+                        for c in candidates:
+                            if isinstance(c, str) and (c.startswith("vless://") or c.startswith("vmess://") or c.startswith("trojan://")):
+                                config_url = c
+                                break
                 except Exception:
                     # not JSON or unexpected shape
                     pass
 
-                if config_url:
-                    self._log.info("Stage:add_client using server config URL: %s", config_url)
+                if is_success:
+                    if config_url:
+                        self._log.info("Stage:add_client using server config URL: %s", config_url)
+                    else:
+                        self._log.info("Stage:add_client success detected; no server link provided")
                     return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=config_url)
-
-                # If body is empty but HTTP 200, treat as success but do NOT generate link locally
-                if not body or not body.strip():
-                    self._log.info("Stage:add_client empty body; success (no local link)")
-                    return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
-
-                lower = body.lower()
-                if "success" in lower or '"ok":true' in lower or '"status":"success"' in lower:
-                    self._log.info("Stage:add_client success detected; no server link provided")
-                    return X3UICreateClientResult(uuid=client_uuid, note=email_note, config_url=None)
                 else:
-                    self._log.warning("Stage:add_client failure indicated by body: %s", body)
+                    self._log.warning("Stage:add_client not successful, will try fallbacks. Body: %s", body)
             else:
                 self._log.warning("Stage:add_client HTTP %s response: %s", resp.status_code, body)
         except Exception as e:
