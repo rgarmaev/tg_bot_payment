@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     # YooKassa
     yk_shop_id: str | None = None
     yk_api_key: str | None = None
+    # Optional receipt settings (for OFD compliance)
+    # Set if your YooKassa account requires receipts
+    yk_receipt_tax_system_code: int | None = None  # 1..6 per YooKassa docs
+    yk_receipt_vat_code: int = 1  # 1: no VAT by default
+    yk_item_name: str = "VPN subscription"
 
     # 3x-ui panel
     x3ui_base_url: str = "http://127.0.0.1:2053"  # without trailing slash

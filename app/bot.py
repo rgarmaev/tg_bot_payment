@@ -439,6 +439,33 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
         success_url = deep_link if True else ((origin + f"/payments/yookassa/success?order_id={order_id}") if origin else None)
         try:
             idempotence_key = f"order-{order_id}-{uuid4()}"
+            # Build receipt for YooKassa (required for many accounts)
+            item_name = (app_settings.yk_item_name or f"{plan['title']} VPN").strip()
+            if len(item_name) > 128:
+                item_name = item_name[:128]
+            vat_code = int(getattr(app_settings, "yk_receipt_vat_code", 1) or 1)
+            receipt: dict = {
+                "customer": {
+                    # Synthetic email to satisfy receipt requirements if user email is unknown
+                    "email": f"tg{callback.from_user.id}@example.com",
+                },
+                "items": [
+                    {
+                        "description": item_name,
+                        "quantity": "1.0",
+                        "amount": {"value": f"{amount:.2f}", "currency": "RUB"},
+                        "vat_code": vat_code,
+                        "payment_subject": "service",
+                        "payment_mode": "full_prepayment",
+                    }
+                ],
+            }
+            if getattr(app_settings, "yk_receipt_tax_system_code", None):
+                try:
+                    receipt["tax_system_code"] = int(app_settings.yk_receipt_tax_system_code)  # type: ignore[assignment]
+                except Exception:
+                    pass
+
             payment = Payment.create({
                 "amount": {"value": f"{amount:.2f}", "currency": "RUB"},
                 "confirmation": {
@@ -448,6 +475,7 @@ async def cb_plan_choose(callback: types.CallbackQuery, session: AsyncSession):
                 "capture": True,
                 "description": description,
                 "metadata": {"order_id": str(order_id)},
+                "receipt": receipt,
             }, idempotence_key)
             confirmation = getattr(payment, "confirmation", None)
             pay_url = None
